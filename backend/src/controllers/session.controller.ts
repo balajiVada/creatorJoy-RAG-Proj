@@ -48,3 +48,75 @@ export const createComparisonSession = async (req: Request, res: Response, next:
     next(error);
   }
 };
+
+export const getSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const session = await ComparisonSession.findById(req.params.id)
+      .populate('videoAId')
+      .populate('videoBId');
+      
+    if (!session) {
+      res.status(404).json({ success: false, message: 'Session not found' });
+      return;
+    }
+    
+    res.status(200).json({ success: true, data: session });
+  } catch (error) {
+    next(error);
+  }
+};
+
+import { extractYouTubeData, extractInstagramData } from '../services/extraction.service';
+
+export const extractSessionData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    
+    const session = await ComparisonSession.findById(id).populate('videoAId').populate('videoBId');
+    if (!session) {
+      res.status(404).json({ success: false, message: 'Session not found' });
+      return;
+    }
+
+    const videoA: any = session.videoAId;
+    const videoB: any = session.videoBId;
+
+    if (videoA.extractionStatus === 'success' && videoB.extractionStatus === 'success') {
+      res.status(200).json({ success: true, data: session });
+      return;
+    }
+
+    const [youtubeData, instagramData] = await Promise.all([
+      extractYouTubeData(videoA.url).catch(err => ({ error: err })),
+      extractInstagramData(videoB.url).catch(err => ({ error: err }))
+    ]);
+
+    if (!('error' in youtubeData)) {
+      videoA.transcript = youtubeData.transcript;
+      videoA.views = youtubeData.views;
+      videoA.likes = youtubeData.likes;
+      videoA.comments = youtubeData.comments;
+      videoA.engagementRate = youtubeData.engagementRate;
+      videoA.extractionStatus = 'success';
+    } else {
+      videoA.extractionStatus = 'failed';
+    }
+
+    if (!('error' in instagramData)) {
+      videoB.transcript = instagramData.transcript;
+      videoB.views = instagramData.views;
+      videoB.likes = instagramData.likes;
+      videoB.comments = instagramData.comments;
+      videoB.engagementRate = instagramData.engagementRate;
+      videoB.extractionStatus = 'success';
+    } else {
+      videoB.extractionStatus = 'failed';
+    }
+
+    await Promise.all([videoA.save(), videoB.save()]);
+
+    res.status(200).json({ success: true, data: session });
+  } catch (error) {
+    next(error);
+  }
+};
