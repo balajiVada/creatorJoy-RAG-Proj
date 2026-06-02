@@ -9,9 +9,9 @@ const formatDuration = (ms?: number) => {
 };
 
 const getStepIcon = (step: string) => {
-  if (step.includes('search')) return <Database size={14} className="text-amber-500" />;
-  if (step.includes('generation') || step.includes('token')) return <Zap size={14} className="text-blue-500" />;
-  if (step.includes('fusion') || step.includes('compiled')) return <Server size={14} className="text-purple-500" />;
+  if (step.includes('search')) return <Database size={14} className="text-accent-pink" />;
+  if (step.includes('generation') || step.includes('token')) return <Zap size={14} className="text-accent-lime" />;
+  if (step.includes('fusion') || step.includes('compiled')) return <Server size={14} className="text-accent-violet" />;
   return <Activity size={14} className="text-muted" />;
 };
 
@@ -48,7 +48,7 @@ const InspectorStep = ({ step, isExpanded, toggleExpand }: { step: PipelineStep,
       >
         <div className="flex-shrink-0 mt-0.5">
           {step.status === 'completed' ? (
-            <CheckCircle2 size={16} className="text-emerald-500" />
+            <CheckCircle2 size={16} className="text-accent-lime" />
           ) : (
             <Circle size={16} className="text-white/20 animate-pulse" />
           )}
@@ -80,7 +80,7 @@ const InspectorStep = ({ step, isExpanded, toggleExpand }: { step: PipelineStep,
           {step.step === 'query_rewritten' && (
             <div className="space-y-2">
               <div className="text-white/50">Rewritten Query:</div>
-              <div className="bg-black/30 p-2 rounded text-emerald-400 break-words whitespace-pre-wrap">
+              <div className="bg-ink border border-hairline-violet p-2 rounded text-accent-lime break-words whitespace-pre-wrap">
                 {step.rewrittenQuery}
               </div>
               <div className="text-white/40">Rewritten: {step.wasRewritten ? 'Yes' : 'No'}</div>
@@ -91,7 +91,7 @@ const InspectorStep = ({ step, isExpanded, toggleExpand }: { step: PipelineStep,
             <div className="space-y-1 text-white/60">
               <div>Chunks Retrieved: <span className="text-white">{step.chunksRetrieved}</span></div>
               {step.topScores && step.topScores.length > 0 && (
-                <div>Top Scores: <span className="text-emerald-400">{step.topScores.map((s: number) => s.toFixed(3)).join(', ')}</span></div>
+                <div>Top Scores: <span className="text-accent-lime">{step.topScores.map((s: number) => s.toFixed(3)).join(', ')}</span></div>
               )}
             </div>
           )}
@@ -112,7 +112,7 @@ const InspectorStep = ({ step, isExpanded, toggleExpand }: { step: PipelineStep,
                 <div className="mt-2 space-y-2">
                   <div className="text-white/40 mb-1">Fused Chunks:</div>
                   {step.retrievedChunks.map((chunk: any, i: number) => (
-                    <div key={i} className="bg-black/30 p-2 rounded">
+                    <div key={i} className="bg-ink border border-hairline-violet p-2 rounded">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] text-white/40 uppercase truncate pr-2">
                           {chunk.documentName} (p.{chunk.pageNumber})
@@ -176,10 +176,10 @@ export const PipelineInspector = () => {
   }, 0);
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0a] text-white overflow-hidden font-mono">
-      <div className="p-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/20">
+    <div className="flex flex-col h-full bg-surface-night text-on-primary overflow-hidden font-mono">
+      <div className="p-3 border-b border-hairline-violet flex items-center justify-between shrink-0 bg-canvas-dark">
         <div className="flex items-center gap-2">
-          <Activity size={16} className="text-emerald-500" />
+          <Activity size={16} className="text-accent-lime" />
           <span className="text-sm font-semibold tracking-wide">AI Pipeline Inspector</span>
         </div>
         <div className="text-[10px] text-white/40 uppercase">Dev Mode</div>
@@ -203,8 +203,8 @@ export const PipelineInspector = () => {
       </div>
 
       {generationCompletedStep && (
-        <div className="p-3 border-t border-white/10 bg-white/5 shrink-0 text-xs space-y-2 font-mono">
-          <div className="text-emerald-400 font-semibold mb-2">Pipeline Completed</div>
+        <div className="p-3 border-t border-hairline-violet bg-white/5 shrink-0 text-xs space-y-2 font-mono">
+          <div className="text-accent-lime font-semibold mb-2">Pipeline Completed</div>
           <div className="grid grid-cols-2 gap-2">
             <div className="text-white/50">Total Latency</div>
             <div className="text-right text-white">{totalLatency.toFixed(0)}ms</div>

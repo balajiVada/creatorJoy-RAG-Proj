@@ -11,6 +11,7 @@ export interface VideoMetadata {
   title?: string;
   thumbnail?: string;
   creatorName?: string;
+  isWinner?: boolean;
 }
 
 export const VideoCard: React.FC<VideoMetadata> = ({
@@ -21,7 +22,8 @@ export const VideoCard: React.FC<VideoMetadata> = ({
   engagementRate,
   title,
   thumbnail,
-  creatorName
+  creatorName,
+  isWinner
 }) => {
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -30,17 +32,17 @@ export const VideoCard: React.FC<VideoMetadata> = ({
   };
 
   return (
-    <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden w-full max-w-2xl hover:shadow-md transition-shadow">
+    <div className={`flex rounded-xl shadow-sm border overflow-hidden w-full max-w-2xl hover:shadow-md transition-shadow font-sans ${isWinner ? 'bg-accent-violet-deep text-on-primary border-accent-violet' : 'bg-canvas text-ink border-border-light'}`}>
       {/* Thumbnail */}
-      <div className="w-1/3 min-w-[120px] bg-slate-100 relative">
+      <div className={`w-1/3 min-w-[120px] relative ${isWinner ? 'bg-primary' : 'bg-soft-stone'}`}>
         {thumbnail ? (
           <img src={thumbnail} alt="Thumbnail" className="object-cover w-full h-full absolute inset-0" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <PlayCircle size={32} className="text-slate-400" />
+            <PlayCircle size={32} className="text-muted" />
           </div>
         )}
-        <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+        <div className="absolute top-2 left-2 bg-primary text-on-primary text-[10px] font-bold px-2 py-1 rounded-xs uppercase tracking-[0.25px]">
           {platform}
         </div>
       </div>
@@ -48,30 +50,30 @@ export const VideoCard: React.FC<VideoMetadata> = ({
       {/* Details */}
       <div className="p-4 flex flex-col justify-between flex-1 min-w-0">
         <div>
-          <h3 className="font-semibold text-slate-900 text-[15px] leading-tight line-clamp-2" title={title || "Video"}>
+          <h3 className={`font-medium text-[16px] leading-tight line-clamp-2 ${isWinner ? 'text-on-primary' : 'text-ink'}`} title={title || "Video"}>
             {title || "Untitled Video"}
           </h3>
-          <p className="text-sm text-slate-500 mt-1 font-medium truncate">
+          <p className={`text-[14px] mt-1 truncate ${isWinner ? 'text-on-dark-muted' : 'text-muted'}`}>
             {creatorName || "Unknown Creator"}
           </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-y-3 gap-x-2 text-slate-600">
+        <div className={`mt-4 grid grid-cols-2 gap-y-3 gap-x-2 ${isWinner ? 'text-on-primary' : 'text-ink'}`}>
           <div className="flex flex-col">
-            <span className="text-[11px] uppercase font-semibold text-slate-400">Views</span>
-            <span className="text-sm font-semibold flex items-center gap-1"><PlayCircle size={14}/>{formatNumber(views)}</span>
+            <span className={`text-[10px] uppercase font-bold tracking-[0.25px] ${isWinner ? 'text-on-dark-muted' : 'text-muted'}`}>Views</span>
+            <span className="text-sm font-semibold flex items-center gap-1"><PlayCircle size={14} className={isWinner ? 'text-accent-lime' : ''}/>{formatNumber(views)}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] uppercase font-semibold text-slate-400">Likes</span>
-            <span className="text-sm font-semibold flex items-center gap-1"><Heart size={14}/>{formatNumber(likes)}</span>
+            <span className={`text-[10px] uppercase font-bold tracking-[0.25px] ${isWinner ? 'text-on-dark-muted' : 'text-muted'}`}>Likes</span>
+            <span className="text-sm font-semibold flex items-center gap-1"><Heart size={14} className={isWinner ? 'text-accent-pink' : ''}/>{formatNumber(likes)}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] uppercase font-semibold text-slate-400">Cmnts</span>
-            <span className="text-sm font-semibold flex items-center gap-1"><MessageCircle size={14}/>{formatNumber(comments)}</span>
+            <span className={`text-[10px] uppercase font-bold tracking-[0.25px] ${isWinner ? 'text-on-dark-muted' : 'text-muted'}`}>Cmnts</span>
+            <span className="text-sm font-semibold flex items-center gap-1"><MessageCircle size={14} className={isWinner ? 'text-accent-violet-mid' : ''}/>{formatNumber(comments)}</span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] uppercase font-semibold text-primary">Eng. Rate</span>
-            <span className="text-sm font-bold text-primary flex items-center gap-1"><BarChart2 size={14}/>{engagementRate}%</span>
+            <span className={`text-[10px] uppercase font-bold tracking-[0.25px] ${isWinner ? 'text-accent-lime' : 'text-accent-violet-deep'}`}>Eng. Rate</span>
+            <span className={`text-sm font-bold flex items-center gap-1 ${isWinner ? 'text-accent-lime' : 'text-accent-violet-deep'}`}><BarChart2 size={14}/>{engagementRate}%</span>
           </div>
         </div>
       </div>

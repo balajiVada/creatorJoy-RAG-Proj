@@ -8,9 +8,14 @@
   }
 
   body {
-    @apply bg-canvas text-ink antialiased selection:bg-action-blue selection:text-white font-sans;
+    @apply bg-canvas text-ink antialiased font-sans;
     margin: 0;
     min-height: 100vh;
+  }
+
+  ::selection {
+    background-color: theme('colors.accent-violet');
+    color: white;
   }
 }
 
@@ -25,7 +30,8 @@
 
 /* Typography styles based on DESIGN.md */
 .font-cohere-display {
-  @apply tracking-tighter leading-none;
+  font-family: "Sentry Display", Rubik, system-ui, sans-serif;
+  @apply tracking-normal leading-none;
 }
 
 .markdown-body {
@@ -33,19 +39,29 @@
 }
 
 .markdown-body p {
-  @apply mb-4;
+  @apply mb-4 leading-[1.5];
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3 {
-  @apply font-semibold tracking-tight mt-6 mb-3 text-ink;
+  font-family: "Sentry Display", Rubik, system-ui, sans-serif;
+  @apply font-medium tracking-normal mt-6 mb-3 text-ink;
+}
+
+/* Sentry Starfield Background */
+.bg-starfield {
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: 0 0, 24px 24px;
 }
 
 .markdown-body ul {
-  @apply list-disc list-outside ml-5 mb-4;
+  @apply list-disc list-outside ml-5 mb-4 leading-[1.5];
 }
 
 .markdown-body ol {
-  @apply list-decimal list-outside ml-5 mb-4;
+  @apply list-decimal list-outside ml-5 mb-4 leading-[1.5];
 }
 
 .markdown-body li {
@@ -53,15 +69,15 @@
 }
 
 .markdown-body strong {
-  @apply font-semibold text-cohere-black;
+  @apply font-semibold text-ink-press;
 }
 
 .markdown-body code {
-  @apply font-mono text-sm bg-soft-stone px-1.5 py-0.5 rounded-md text-ink;
+  @apply font-mono text-[16px] bg-soft-stone px-1.5 py-0.5 rounded-md text-ink;
 }
 
 .markdown-body pre code {
-  @apply block bg-primary text-on-primary p-4 rounded-lg overflow-x-auto my-4 text-sm;
+  @apply block font-mono bg-surface-night text-on-primary p-4 rounded-md overflow-x-auto my-4 text-[16px];
 }
 
 /* Custom Scrollbar */
@@ -74,7 +90,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate/30 rounded-full hover:bg-slate/50 transition-colors;
+  @apply bg-hairline-cool rounded-full hover:bg-accent-violet-mid transition-colors;
 }
 
 /* Animation for streaming text */

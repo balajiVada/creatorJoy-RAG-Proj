@@ -181,40 +181,55 @@ function ChatPage() {
     "Which video format performs better here?",
   ];
 
+  const renderUserMessage = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-accent-lime underline decoration-accent-lime/30 underline-offset-2 hover:text-white transition-colors break-all">
+            {part}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   return (
     <div className="flex h-screen bg-canvas text-ink overflow-hidden font-sans relative">
       {/* Mobile Backdrop */}
       {isMobileOpen && <div className="md:hidden fixed inset-0 bg-black/50 z-30 transition-opacity" onClick={() => setIsMobileOpen(false)} />}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 bg-primary text-on-dark flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isSidebarExpanded ? 'w-[260px]' : 'w-[72px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 bg-canvas-dark bg-starfield text-on-primary flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isSidebarExpanded ? 'w-[260px]' : 'w-[72px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className={`p-4 flex items-center ${isSidebarExpanded ? 'justify-between' : 'justify-center'} mt-2`}>
-          {isSidebarExpanded && <h1 className="text-xl font-bold font-cohere-display tracking-tight text-on-dark truncate px-2">Video RAG</h1>}
+          {isSidebarExpanded && <h1 className="text-xl font-bold font-display tracking-normal text-on-primary truncate px-2">Video RAG</h1>}
           <button onClick={() => setIsSidebarExpanded(!isSidebarExpanded)} className="p-2 rounded-md hover:bg-white/10 text-white/70 hover:text-white hidden md:block">
             <PanelLeft size={20} />
           </button>
         </div>
         
-        <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
-          <button onClick={() => { setActiveSession(null); setMessages([]); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-[14px] font-medium text-white/90 hover:bg-white/10 bg-white/5 border border-white/10 shadow-sm mb-4">
-            <Plus size={18} />
+        <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto relative z-10 pb-32">
+          <button onClick={() => { setActiveSession(null); setMessages([]); }} className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-[14px] font-bold uppercase tracking-[0.2px] text-on-primary bg-on-dark-faint hover:bg-surface-night transition-all border border-hairline-violet shadow-sm mb-6">
+            <Plus size={16} />
             {isSidebarExpanded && <span>New Analysis</span>}
           </button>
 
           {isSidebarExpanded && (
             <>
-              <div className="pt-2 pb-2 px-3">
-                <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Recent Sessions</span>
+              <div className="pt-2 pb-3 px-2">
+                <span className="text-[10px] font-bold text-on-dark-muted uppercase tracking-[0.25px]">Recent Sessions</span>
               </div>
               {isLoadingSessions ? (
-                <div className="px-3 text-sm text-white/40 animate-pulse">Loading...</div>
+                <div className="px-3 text-sm text-on-dark-muted animate-pulse">Loading...</div>
               ) : (
                 sessions.map(session => (
-                  <div key={session._id} className="group relative flex items-center pr-1">
-                    <button onClick={() => setActiveSession(session._id)} className={`flex-1 text-left px-3 py-2 rounded-md text-[13px] truncate transition-all ${activeSessionId === session._id ? 'bg-white/10 text-white font-medium' : 'text-white/60 hover:bg-white/5 hover:text-white'}`}>
+                  <div key={session._id} className="group relative flex items-center pr-1 mb-1">
+                    <button onClick={() => setActiveSession(session._id)} className={`flex-1 text-left px-3 py-2 rounded-md text-[14px] truncate transition-all font-medium ${activeSessionId === session._id ? 'bg-on-dark-faint text-on-primary shadow-sm' : 'text-on-dark-muted hover:bg-on-dark-faint/50 hover:text-on-primary'}`}>
                       {session.title}
                     </button>
-                    <button onClick={async (e) => { e.stopPropagation(); await deleteSession(session._id); if (activeSessionId === session._id) setMessages([]); }} className="absolute right-1 opacity-0 group-hover:opacity-100 p-1.5 text-white/40 hover:text-red-400 hover:bg-white/10 rounded transition-all bg-primary" title="Delete Chat">
+                    <button onClick={async (e) => { e.stopPropagation(); await deleteSession(session._id); if (activeSessionId === session._id) setMessages([]); }} className="absolute right-1 opacity-0 group-hover:opacity-100 p-1.5 text-on-dark-muted hover:text-error hover:bg-on-dark-faint rounded transition-all bg-canvas-dark" title="Delete Chat">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -223,6 +238,16 @@ function ChatPage() {
             </>
           )}
         </nav>
+
+        {/* Sticker Mascot Layer (Sentry-style decorative floating element) */}
+        {isSidebarExpanded && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none -rotate-6">
+             <div className="w-16 h-16 bg-accent-pink rounded-xxl flex items-center justify-center shadow-lg border border-primary relative">
+                <span className="text-3xl rotate-12">👾</span>
+                <div className="absolute -bottom-2 -right-4 bg-accent-lime text-ink-press px-2 py-0.5 text-[9px] font-bold uppercase rounded-xs tracking-[0.25px] border border-primary shadow-sm whitespace-nowrap">Debugging</div>
+             </div>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -244,14 +269,16 @@ function ChatPage() {
                 <MessageSquare size={32} className="text-primary" />
               </div>
               <div className="text-center space-y-4">
-                <h2 className="text-4xl font-bold text-ink">Video Intent Analyzer</h2>
+                <h2 className="text-4xl font-bold font-cohere-display text-ink">
+                  Video Intent <span className="bg-accent-lime px-2 py-1 rounded-xs text-ink-press">Analyzer</span>
+                </h2>
                 <p className="text-muted text-[16px] max-w-xl mx-auto leading-relaxed">
                   Paste any YouTube or Instagram Reel links. I will automatically extract the video context and compare engagement metrics. Ask any questions!
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full pt-8">
                 {suggestionPrompts.map((prompt, idx) => (
-                  <button key={idx} onClick={() => handleSend(prompt)} className="p-4 text-left bg-canvas border border-border-light rounded-lg hover:border-primary hover:shadow-md transition-all text-[14px] text-ink flex items-center justify-between group">
+                  <button key={idx} onClick={() => handleSend(prompt)} className="p-4 text-left bg-canvas border border-border-light rounded-xl hover:border-primary hover:shadow-md transition-all text-[14px] text-ink flex items-center justify-between group">
                     <span className="truncate pr-4 font-sans">{prompt}</span>
                     <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                   </button>
@@ -264,8 +291,8 @@ function ChatPage() {
                 <div key={msg.id} className="space-y-4 animate-in">
                   <div className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'user' ? (
-                      <div className="bg-soft-stone border border-border-light text-ink rounded-2xl px-6 py-4 text-[16px] max-w-[80%] shadow-sm font-sans leading-relaxed whitespace-pre-wrap">
-                        {msg.content}
+                      <div className="bg-surface-night border border-hairline-violet text-on-primary rounded-xl px-6 py-4 text-[16px] max-w-[80%] shadow-md font-sans leading-relaxed whitespace-pre-wrap">
+                        {renderUserMessage(msg.content)}
                       </div>
                     ) : (
                       <div className="flex gap-5 items-start w-full">
@@ -284,13 +311,14 @@ function ChatPage() {
                             </div>
                           )}
 
-                          {msg.content && (
+                          {msg.content === '' && msg.isStreaming ? (
                             <div className="text-[16px] leading-relaxed text-ink font-sans">
-                            {msg.content === '' && msg.isStreaming ? (
-                              <span className="flex items-center gap-2 text-muted text-sm font-medium">
-                                <RefreshCw size={16} className="animate-spin" /> Thinking and analyzing...
+                              <span className="flex items-center gap-2 text-muted text-sm font-medium mt-2">
+                                <RefreshCw size={16} className="animate-spin text-accent-violet-deep" /> Analyzing intent & routing pipeline...
                               </span>
-                            ) : (
+                            </div>
+                          ) : msg.content ? (
+                            <div className="text-[16px] leading-relaxed text-ink font-sans">
                               <div className="prose max-w-none">
                                 <ReactMarkdown 
                                   remarkPlugins={[remarkGfm]}
@@ -309,9 +337,8 @@ function ChatPage() {
                                   {msg.content}
                                 </ReactMarkdown>
                               </div>
-                            )}
-                          </div>
-                          )}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -323,8 +350,8 @@ function ChatPage() {
           )}
         </div>
 
-        <div className="p-10 pt-4 shrink-0 bg-canvas">
-          <div className="max-w-4xl mx-auto bg-canvas p-2 rounded-xl flex items-center gap-3 border border-border-light shadow-sm focus-within:border-primary focus-within:shadow-md transition-all">
+        <div className="p-10 pt-6 shrink-0 bg-canvas border-t-2 border-accent-lime border-dashed relative">
+          <div className="max-w-4xl mx-auto bg-canvas rounded-sm flex items-center gap-3 border border-hairline-cool shadow-sm focus-within:ring-2 focus-within:ring-ring-focus focus-within:border-ring-focus transition-all">
             <input 
               type="text" 
               value={input}
@@ -332,10 +359,10 @@ function ChatPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               disabled={isLoading}
               placeholder="Paste links or ask anything..."
-              className="flex-1 min-w-[200px] bg-transparent border-none focus:ring-0 py-2 px-2 text-[16px] outline-none placeholder:text-muted font-sans text-ink"
+              className="flex-1 min-w-[200px] bg-transparent border-none focus:ring-0 py-3 px-4 text-[16px] outline-none placeholder:text-muted font-sans text-ink"
             />
-            <button onClick={() => handleSend()} disabled={isLoading || !input.trim()} className={`p-3 rounded-lg transition-all ${input.trim() && !isLoading ? 'bg-primary hover:bg-primary/90 text-on-primary shadow-md' : 'bg-soft-stone text-muted cursor-not-allowed'}`}>
-              <Send size={20} />
+            <button onClick={() => handleSend()} disabled={isLoading || !input.trim()} className={`m-1.5 px-4 py-2.5 rounded-md font-bold text-[14px] uppercase tracking-[0.2px] transition-all ${input.trim() && !isLoading ? 'bg-primary hover:bg-surface-press-stronger hover:text-ink-press text-on-primary shadow-sm' : 'bg-soft-stone text-muted cursor-not-allowed'}`}>
+              <Send size={18} />
             </button>
           </div>
         </div>
