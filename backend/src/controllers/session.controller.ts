@@ -67,6 +67,9 @@ export const getSession = async (req: Request, res: Response, next: NextFunction
 };
 
 import { extractYouTubeData, extractInstagramData } from '../services/extraction.service';
+import { chunkingService } from '../services/chunking.service';
+import { vectorService } from '../services/vector.service';
+import { logger } from '../utils/logger';
 
 export const extractSessionData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -98,6 +101,16 @@ export const extractSessionData = async (req: Request, res: Response, next: Next
       videoA.comments = youtubeData.comments;
       videoA.engagementRate = youtubeData.engagementRate;
       videoA.extractionStatus = 'success';
+      
+      // Upsert to vector DB
+      try {
+        const transcriptText = typeof videoA.transcript === 'string' ? videoA.transcript : String(videoA.transcript || "");
+        const chunks = await chunkingService.splitText(transcriptText);
+        await vectorService.upsertTranscriptVectors(String(id), String(videoA._id), 'youtube', chunks);
+        logger.info(`Upserted ${chunks.length} vectors for YouTube video`);
+      } catch (err: any) {
+        logger.error(`Failed to upsert YouTube vectors: ${err.message}`);
+      }
     } else {
       videoA.extractionStatus = 'failed';
     }
@@ -109,6 +122,16 @@ export const extractSessionData = async (req: Request, res: Response, next: Next
       videoB.comments = instagramData.comments;
       videoB.engagementRate = instagramData.engagementRate;
       videoB.extractionStatus = 'success';
+      
+      // Upsert to vector DB
+      try {
+        const transcriptText = typeof videoB.transcript === 'string' ? videoB.transcript : String(videoB.transcript || "");
+        const chunks = await chunkingService.splitText(transcriptText);
+        await vectorService.upsertTranscriptVectors(String(id), String(videoB._id), 'instagram', chunks);
+        logger.info(`Upserted ${chunks.length} vectors for Instagram video`);
+      } catch (err: any) {
+        logger.error(`Failed to upsert Instagram vectors: ${err.message}`);
+      }
     } else {
       videoB.extractionStatus = 'failed';
     }
