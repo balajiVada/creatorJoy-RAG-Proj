@@ -1,17 +1,88 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-white;
+    @apply bg-canvas text-ink antialiased selection:bg-action-blue selection:text-white font-sans;
+    margin: 0;
+    min-height: 100vh;
   }
 }
 
-@layer utilities {
-  .glass-panel {
-    @apply bg-card/60 backdrop-blur-lg border border-border;
-  }
+/* Glassmorphism utility - adapted for light mode where needed */
+.glass {
+  @apply bg-white/80 backdrop-blur-xl border border-border-light shadow-sm;
+}
+
+.glass-dark {
+  @apply bg-primary/90 backdrop-blur-2xl border border-white/10 shadow-lg text-white;
+}
+
+/* Typography styles based on DESIGN.md */
+.font-cohere-display {
+  @apply tracking-tighter leading-none;
+}
+
+.markdown-body {
+  @apply text-ink font-sans leading-relaxed text-[16px];
+}
+
+.markdown-body p {
+  @apply mb-4;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  @apply font-semibold tracking-tight mt-6 mb-3 text-ink;
+}
+
+.markdown-body ul {
+  @apply list-disc list-outside ml-5 mb-4;
+}
+
+.markdown-body ol {
+  @apply list-decimal list-outside ml-5 mb-4;
+}
+
+.markdown-body li {
+  @apply mb-1;
+}
+
+.markdown-body strong {
+  @apply font-semibold text-cohere-black;
+}
+
+.markdown-body code {
+  @apply font-mono text-sm bg-soft-stone px-1.5 py-0.5 rounded-md text-ink;
+}
+
+.markdown-body pre code {
+  @apply block bg-primary text-on-primary p-4 rounded-lg overflow-x-auto my-4 text-sm;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate/30 rounded-full hover:bg-slate/50 transition-colors;
+}
+
+/* Animation for streaming text */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out forwards;
 }

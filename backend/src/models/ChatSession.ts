@@ -2,7 +2,7 @@ import mongoose, { Schema, Document as MongooseDocument } from 'mongoose';
 
 export interface IChatSession extends MongooseDocument {
   title?: string;
-  comparisonSessionId: mongoose.Types.ObjectId;
+  ingestedVideos: { url: string; metadataId: mongoose.Types.ObjectId }[];
   messageCount: number;
   lastMessageAt?: Date;
   createdAt: Date;
@@ -12,13 +12,14 @@ export interface IChatSession extends MongooseDocument {
 const ChatSessionSchema = new Schema<IChatSession>(
   {
     title: { type: String },
-    comparisonSessionId: { type: Schema.Types.ObjectId, ref: 'ComparisonSession', required: true },
+    ingestedVideos: [{
+      url: { type: String, required: true },
+      metadataId: { type: Schema.Types.ObjectId, ref: 'VideoMetadata' }
+    }],
     messageCount: { type: Number, default: 0 },
     lastMessageAt: { type: Date },
   },
   { timestamps: true }
 );
-
-ChatSessionSchema.index({ comparisonSessionId: 1 });
 
 export const ChatSession = mongoose.model<IChatSession>('ChatSession', ChatSessionSchema);
