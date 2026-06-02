@@ -30,7 +30,7 @@ export async function initPinecone() {
       logger.info(`Pinecone index "${PINECONE_INDEX_NAME}" does not exist. Creating a serverless index...`);
       await pinecone.createIndex({
         name: PINECONE_INDEX_NAME,
-        dimension: 1536, // Dimension for OpenAI text-embedding-3-small
+        dimension: 768, // Dimension for Gemini embeddings
         metric: 'cosine',
         spec: {
           serverless: {
