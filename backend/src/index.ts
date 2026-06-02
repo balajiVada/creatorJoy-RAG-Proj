@@ -18,10 +18,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+import sessionRoutes from './routes/session.routes';
+
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'creatorJoy-RAG Backend is running' });
 });
+
+// API Routes
+app.use('/api/sessions', sessionRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
