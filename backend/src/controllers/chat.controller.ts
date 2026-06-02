@@ -187,17 +187,28 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     const embeddedQuery = await vectorService.embedText(rewrittenQuery);
     const matches = await vectorService.querySimilarity(embeddedQuery, 6, { sessionId: chatSession._id.toString() });
 
-    const citations = matches.map(match => ({
-      source: match.metadata?.source,
-      chunkIndex: match.metadata?.chunkIndex,
-      text: match.metadata?.text,
-      score: match.score,
-    }));
-
-    const contextText = citations.map(match => `Source: ${match.source}\nText: ${match.text}`).join('\n\n');
-
-    // Fetch all metadata for this session to inject into prompt
+    // Fetch all metadata for this session to inject into prompt and citations
     const allMetadata = await VideoMetadata.find({ chatSessionId: chatSession._id });
+    
+    // Create lookup map
+    const metadataMap = new Map(allMetadata.map(md => [md._id.toString(), md]));
+
+    const citations = matches.map(match => {
+      const videoId = match.metadata?.videoId;
+      const md = videoId ? metadataMap.get(videoId.toString()) : null;
+      
+      return {
+        source: match.metadata?.source,
+        chunkIndex: match.metadata?.chunkIndex,
+        text: match.metadata?.text,
+        score: match.score,
+        title: md?.title,
+        thumbnail: md?.thumbnail
+      };
+    });
+
+    const contextText = citations.map((match, idx) => `[${idx + 1}] Source: ${match.source} (${match.title})\nText: ${match.text}`).join('\n\n');
+
     const metadataStats = allMetadata.map(md => 
       `${md.platform.toUpperCase()} (${md.url}): Views: ${md.views}, Likes: ${md.likes}, Engagement: ${md.engagementRate}%`
     ).join('\n');
@@ -213,6 +224,7 @@ Strict Guidelines:
 2. If the user asks to compare videos, compare their engagement and context effectively.
 3. If the answer cannot be found in the context, explicitly say so.
 4. Use the conversation memory ONLY for context, but answer based on the CONTEXT CHUNKS.
+5. MANDATORY: Whenever you state a fact, metric, or quote from the context chunks, you MUST include an inline citation using the <cite> tag referencing the 1-indexed chunk number, like <cite>1</cite>, <cite>2</cite>, etc.
 
 CONTEXT CHUNKS:
 ${contextText}`;

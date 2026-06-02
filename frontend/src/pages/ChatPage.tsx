@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { useChatStore } from '../stores/useChatStore';
 import { usePipelineInspectorStore } from '../stores/usePipelineInspectorStore';
 import { PipelineInspector } from '../components/PipelineInspector';
 import { VideoCard } from '../components/VideoCard';
 import { ComparisonView } from '../components/ComparisonView';
+import { CitationTooltip } from '../components/CitationTooltip';
 
 interface Citation {
   source?: string;
@@ -290,23 +292,25 @@ function ChatPage() {
                               </span>
                             ) : (
                               <div className="prose max-w-none">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                <ReactMarkdown 
+                                  remarkPlugins={[remarkGfm]}
+                                  rehypePlugins={[rehypeRaw]}
+                                  components={{
+                                    cite: ({ children }) => {
+                                      const indexText = Array.isArray(children) ? children[0] : children;
+                                      const index = parseInt(indexText as string);
+                                      if (isNaN(index) || !msg.citations) return <span>[{indexText}]</span>;
+                                      
+                                      const citation = msg.citations[index - 1];
+                                      return <CitationTooltip index={index} citation={citation} />;
+                                    }
+                                  }}
+                                >
+                                  {msg.content}
+                                </ReactMarkdown>
                               </div>
                             )}
                           </div>
-                          )}
-                          {msg.citations && msg.citations.length > 0 && (
-                            <div className="space-y-3 pt-4 border-t border-border-light">
-                              <span className="text-[12px] font-semibold text-muted uppercase tracking-wider block font-sans">Sources ({msg.citations.length})</span>
-                              <div className="flex flex-wrap gap-2">
-                                {msg.citations.map((citation, cIdx) => (
-                                  <div key={cIdx} className="px-3 py-1.5 rounded-full text-[12px] font-medium flex items-center gap-2 bg-canvas border border-border-light text-ink">
-                                    <BookOpen size={12} />
-                                    <span className="max-w-[140px] truncate">{citation.source || 'Transcript'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
                           )}
                         </div>
                       </div>
