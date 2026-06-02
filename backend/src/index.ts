@@ -26,9 +26,12 @@ app.get('/health', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
+import { initPinecone } from './config/pinecone';
+
 // Start server
 const startServer = async () => {
   await connectDB();
+  await initPinecone();
   
   app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
