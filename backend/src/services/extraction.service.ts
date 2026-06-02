@@ -15,16 +15,26 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
     const transcriptChunks = await YoutubeTranscript.fetchTranscript(url);
     const transcript = transcriptChunks.map(chunk => chunk.text).join(' ');
 
-    // 2. Since YouTube Data API requires a key, we will simulate realistic metrics
-    // based on typical averages for demonstration purposes unless an API key is provided.
-    // In a production app, we would hit the YouTube Data API v3 `videos?part=statistics` here.
+    // 2. Attempt to scrape real metadata from the HTML instead of mocking
+    let views = 0;
+    let likes = 0;
+    let comments = 0;
+
+    try {
+      const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const html = await response.text();
+      
+      const viewMatch = html.match(/"viewCount":"(\d+)"/);
+      if (viewMatch) views = parseInt(viewMatch[1], 10);
+      
+      // Look for string representations of likes
+      const likeMatch = html.match(/"likeCount":"(\d+)"/);
+      if (likeMatch) likes = parseInt(likeMatch[1], 10);
+    } catch (err: any) {
+      logger.warn(`Failed to scrape real YouTube metadata for ${url}`);
+    }
     
-    // Generating realistic mock metrics for YouTube
-    const views = Math.floor(Math.random() * (500000 - 10000) + 10000);
-    const likes = Math.floor(views * (Math.random() * (0.08 - 0.02) + 0.02)); // 2% to 8% like rate
-    const comments = Math.floor(likes * (Math.random() * (0.1 - 0.01) + 0.01)); // 1% to 10% comment rate
-    
-    const engagementRate = ((likes + comments) / views) * 100;
+    const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
 
     return {
       transcript,
@@ -41,24 +51,28 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
 
 export const extractInstagramData = async (url: string): Promise<ExtractedData> => {
   try {
-    // Instagram is aggressively blocking scrapes without authentication.
-    // As agreed in the implementation plan, we will inject highly realistic mock data
-    // to ensure the AI pipeline has rich data to compare against the YouTube video.
-
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const mockTranscript = "What is up guys! Today we're looking at something crazy. You won't believe how simple this trick is. Just do X, Y, and Z and you're good to go! Drop a like and follow for more tips.";
+    // Attempt basic HTML scraping. (This will likely fail due to Meta's aggressive anti-bot protections)
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+    if (!response.ok) {
+      throw new Error(`Instagram server returned ${response.status}`);
+    }
+    const html = await response.text();
     
-    // Generating realistic mock metrics for Instagram Reels (often higher engagement rates than YT)
-    const views = Math.floor(Math.random() * (800000 - 50000) + 50000);
-    const likes = Math.floor(views * (Math.random() * (0.12 - 0.04) + 0.04)); // 4% to 12% like rate
-    const comments = Math.floor(likes * (Math.random() * (0.15 - 0.02) + 0.02)); 
+    let transcript = "No description available";
+    let views = 0;
+    let likes = 0;
+    let comments = 0;
+
+    // Grab the description meta tag to act as our transcript
+    const metaDescMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
+    if (metaDescMatch) {
+      transcript = metaDescMatch[1];
+    }
     
-    const engagementRate = ((likes + comments) / views) * 100;
+    const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
 
     return {
-      transcript: mockTranscript,
+      transcript,
       views,
       likes,
       comments,
