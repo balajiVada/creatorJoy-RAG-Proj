@@ -19,6 +19,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 import sessionRoutes from './routes/session.routes';
+import chatRoutes from './routes/chat.routes';
 
 // Health check
 app.get('/health', (req, res) => {
@@ -27,6 +28,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

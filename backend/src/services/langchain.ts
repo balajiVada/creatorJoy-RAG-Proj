@@ -1,5 +1,6 @@
 import { AzureChatOpenAI } from "@langchain/openai";
 import { GoogleGenAI } from '@google/genai';
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -45,5 +46,61 @@ export const embeddings = {
       })
     );
     return results;
+  }
+};
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export const llmService = {
+  async generateResponse(messages: ChatMessage[], onToken?: (token: string) => void) {
+    const langchainMessages = messages.map(m => {
+      if (m.role === 'system') return new SystemMessage(m.content);
+      if (m.role === 'assistant') return new HumanMessage(m.content);
+      return new HumanMessage(m.content);
+    });
+
+    if (onToken) {
+      const stream = await llm.stream(langchainMessages);
+      for await (const chunk of stream) {
+        if (chunk.content) {
+          onToken(chunk.content.toString());
+        }
+      }
+      return;
+    }
+
+    const response = await llm.invoke(langchainMessages);
+    return response.content.toString();
+  },
+
+  async rewriteQuery(currentQuery: string, memory: { role: string; content: string }[]): Promise<string> {
+    if (memory.length === 0) return currentQuery;
+
+    const lowerQuery = currentQuery.toLowerCase();
+    const needsRewrite = lowerQuery.length < 30 || /\b(it|this|that|he|she|they|them|his|hers|its|these|those|the previous|the first|the second)\b/i.test(lowerQuery);
+
+    if (!needsRewrite) return currentQuery;
+
+    const systemPrompt = `You are a search query rewriter. 
+Your goal is to rewrite the user's latest query into a standalone, context-independent sentence that can be used for semantic search.
+Use the conversation memory to resolve pronouns and references.
+Strict Rules:
+- Output ONLY the rewritten query, nothing else.
+- Do NOT answer the question.
+- Do NOT add external assumptions.
+- If the query is already standalone, return it exactly as is.`;
+
+    const formattedMemory = memory.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
+    const fullPrompt = `${systemPrompt}\n\nConversation Memory:\n${formattedMemory}\n\nUser Query: ${currentQuery}\n\nRewritten Query:`;
+
+    try {
+      const response = await llm.invoke([new HumanMessage(fullPrompt)]);
+      return response.content.toString().trim();
+    } catch (error) {
+      return currentQuery;
+    }
   }
 };
