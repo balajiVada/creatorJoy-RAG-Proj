@@ -57,6 +57,8 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     const urls = message.match(URL_REGEX) || [];
     const textContent = message.replace(URL_REGEX, '').trim();
     const newUrlsToIngest: string[] = [];
+    const uiComponents: any[] = [];
+    const newlyIngestedMetadata: any[] = [];
 
     urls.forEach((url) => {
       const alreadyIngested = chatSession.ingestedVideos.some(v => v.url === url);
@@ -90,8 +92,12 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
             comments: data.comments,
             engagementRate: data.engagementRate,
             extractionStatus: 'success',
-            extractedAt: new Date()
+            extractedAt: new Date(),
+            title: data.title,
+            thumbnail: data.thumbnail,
+            creatorName: data.creatorName
           });
+          newlyIngestedMetadata.push(metadata);
           
           // B. Chunking
           const chunks = await chunkingService.splitText(data.transcript);
@@ -114,6 +120,19 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
           emitPipelineStep({ step: `ingestion_failed`, status: 'error', url, error: err.message });
         }
       }
+
+      // Generate UI Components based on what was ingested
+      if (newlyIngestedMetadata.length === 1) {
+        uiComponents.push({
+          type: 'video_card',
+          props: newlyIngestedMetadata[0]
+        });
+      } else if (newlyIngestedMetadata.length > 1) {
+        uiComponents.push({
+          type: 'comparison_view',
+          props: { videos: newlyIngestedMetadata }
+        });
+      }
     }
 
     // Persist User Message
@@ -133,10 +152,18 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
         chatSessionId: chatSession._id,
         role: 'assistant',
         content: confirmMsg,
+        uiComponents // Save UI Components to DB
       });
       chatSession.messageCount += 1;
       chatSession.lastMessageAt = new Date();
       await chatSession.save();
+
+      // Emit UI components
+      if (uiComponents.length > 0) {
+        uiComponents.forEach(ui => {
+          res.write(`data: ${JSON.stringify({ type: 'ui_component', component: ui.type, props: ui.props })}\n\n`);
+        });
+      }
 
       // We must send the sessionId to the client so it knows the new session ID
       res.write(`data: ${JSON.stringify({ type: 'citations', citations: [], sessionId: chatSession._id })}\n\n`);
@@ -204,6 +231,13 @@ ${contextText}`;
       sessionId: chatSession._id 
     })}\n\n`);
 
+    // Emit UI components for the RAG pipeline branch
+    if (uiComponents.length > 0) {
+      uiComponents.forEach(ui => {
+        res.write(`data: ${JSON.stringify({ type: 'ui_component', component: ui.type, props: ui.props })}\n\n`);
+      });
+    }
+
     emitPipelineStep({ step: 'generation_started', status: 'completed' });
 
     let fullResponse = '';
@@ -218,7 +252,8 @@ ${contextText}`;
       chatSessionId: chatSession._id,
       role: 'assistant',
       content: fullResponse,
-      citations
+      citations,
+      uiComponents // Save UI Components to DB
     });
     chatSession.messageCount += 1;
     chatSession.lastMessageAt = new Date();

@@ -11,6 +11,9 @@ export interface IVideoMetadata extends Document {
   engagementRate?: number;
   extractionStatus: 'pending' | 'success' | 'failed';
   extractedAt?: Date;
+  title?: string;
+  thumbnail?: string;
+  creatorName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +30,9 @@ const VideoMetadataSchema = new Schema<IVideoMetadata>(
     engagementRate: { type: Number },
     extractionStatus: { type: String, enum: ['pending', 'success', 'failed'], default: 'pending' },
     extractedAt: { type: Date },
+    title: { type: String },
+    thumbnail: { type: String },
+    creatorName: { type: String },
   },
   { timestamps: true }
 );

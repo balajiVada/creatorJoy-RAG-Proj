@@ -7,6 +7,9 @@ export interface ExtractedData {
   likes: number;
   comments: number;
   engagementRate: number;
+  title?: string;
+  thumbnail?: string;
+  creatorName?: string;
 }
 
 export const extractYouTubeData = async (url: string): Promise<ExtractedData> => {
@@ -15,10 +18,12 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
     const transcriptChunks = await YoutubeTranscript.fetchTranscript(url);
     const transcript = transcriptChunks.map(chunk => chunk.text).join(' ');
 
-    // 2. Attempt to scrape real metadata from the HTML instead of mocking
     let views = 0;
     let likes = 0;
     let comments = 0;
+    let title = '';
+    let thumbnail = '';
+    let creatorName = '';
 
     try {
       const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -27,9 +32,17 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
       const viewMatch = html.match(/"viewCount":"(\d+)"/);
       if (viewMatch) views = parseInt(viewMatch[1], 10);
       
-      // Look for string representations of likes
       const likeMatch = html.match(/"likeCount":"(\d+)"/);
       if (likeMatch) likes = parseInt(likeMatch[1], 10);
+
+      const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
+      if (titleMatch) title = titleMatch[1];
+
+      const thumbnailMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+      if (thumbnailMatch) thumbnail = thumbnailMatch[1];
+
+      const creatorMatch = html.match(/<link itemprop="name" content="([^"]+)"/);
+      if (creatorMatch) creatorName = creatorMatch[1];
     } catch (err: any) {
       logger.warn(`Failed to scrape real YouTube metadata for ${url}`);
     }
@@ -41,7 +54,10 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
       views,
       likes,
       comments,
-      engagementRate: parseFloat(engagementRate.toFixed(2))
+      engagementRate: parseFloat(engagementRate.toFixed(2)),
+      title,
+      thumbnail,
+      creatorName
     };
   } catch (error: any) {
     logger.error({ err: error, url }, "Failed to extract YouTube data");
@@ -49,37 +65,88 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
   }
 };
 
-export const extractInstagramData = async (url: string): Promise<ExtractedData> => {
-  try {
-    // Attempt basic HTML scraping. (This will likely fail due to Meta's aggressive anti-bot protections)
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
-    if (!response.ok) {
-      throw new Error(`Instagram server returned ${response.status}`);
-    }
-    const html = await response.text();
-    
-    let transcript = "No description available";
-    let views = 0;
-    let likes = 0;
-    let comments = 0;
+function shortcodeToId(shortcode: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  let id = BigInt(0);
+  for (let i = 0; i < shortcode.length; i++) {
+    id = (id * BigInt(64)) + BigInt(alphabet.indexOf(shortcode[i]));
+  }
+  return id.toString();
+}
 
-    // Grab the description meta tag to act as our transcript
-    const metaDescMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-    if (metaDescMatch) {
-      transcript = metaDescMatch[1];
+export const extractInstagramData = async (url: string) => {
+  try {
+    logger.info(`Starting Instagram extraction via RapidAPI for ${url}`);
+
+    // Extract shortcode from URL (e.g. instagram.com/reel/Cq_xyz123/)
+    const match = url.match(/(?:reel|p)\/([a-zA-Z0-9_-]+)/);
+    const shortcode = match ? match[1] : null;
+
+    if (!shortcode) {
+      throw new Error('Could not parse Instagram Reel shortcode from URL');
     }
+
+    const rapidApiKey = process.env.RAPID_API_KEY;
+    if (!rapidApiKey) {
+      throw new Error('RAPID_API_KEY is not configured in environment variables');
+    }
+
+    // Convert shortcode to numeric Media ID for this specific API
+    const mediaId = shortcodeToId(shortcode);
+
+    const apiUrl = `https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/media?id=${mediaId}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-key': rapidApiKey,
+        'x-rapidapi-host': 'instagram-api-fast-reliable-data-scraper.p.rapidapi.com'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`RapidAPI responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data) {
+      throw new Error('Invalid response structure from RapidAPI');
+    }
+
+    const views = data.play_count || data.view_count || data.video_view_count || data.fb_play_count || 0;
+    const likes = data.like_count || data.fb_like_count || 0;
+    const comments = data.comment_count || 0;
     
-    const engagementRate = views > 0 ? ((likes + comments) / views) * 100 : 0;
+    let transcript = data.caption?.text || '';
+
+    if (!transcript) {
+      transcript = "No caption available for this Reel.";
+    }
+
+    let engagementRate = 0;
+    if (views > 0) {
+      engagementRate = Number((((likes + comments) / views) * 100).toFixed(2));
+    }
+
+    const title = data.title || transcript.substring(0, 50) + '...';
+    const thumbnail = data.thumbnail_url || data.display_url || '';
+    const creatorName = data.user?.username || data.owner?.username || '';
+
+    logger.info(`Successfully extracted Instagram data for ${shortcode} (Media ID: ${mediaId})`);
 
     return {
       transcript,
       views,
       likes,
       comments,
-      engagementRate: parseFloat(engagementRate.toFixed(2))
+      engagementRate,
+      title,
+      thumbnail,
+      creatorName
     };
   } catch (error: any) {
-    logger.error({ err: error, url }, "Failed to extract Instagram data");
-    throw new Error("Instagram Extraction Failed: " + error.message);
+    logger.error({ err: error }, 'Failed to extract Instagram data');
+    throw new Error('Failed to extract Instagram metadata and caption');
   }
 };

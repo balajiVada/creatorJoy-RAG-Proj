@@ -15,6 +15,10 @@ export interface IChatMessage extends MongooseDocument {
     model?: string;
     [key: string]: any;
   };
+  uiComponents?: {
+    type: 'video_card' | 'comparison_view' | 'error_card';
+    props: any;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +30,10 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     content: { type: String, required: true },
     citations: { type: Schema.Types.Mixed },
     retrievalMetadata: { type: Schema.Types.Mixed },
+    uiComponents: [{
+      type: { type: String, enum: ['video_card', 'comparison_view', 'error_card'] },
+      props: { type: Schema.Types.Mixed }
+    }]
   },
   { timestamps: true }
 );

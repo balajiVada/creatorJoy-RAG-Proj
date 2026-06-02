@@ -15,6 +15,8 @@ import remarkGfm from 'remark-gfm';
 import { useChatStore } from '../stores/useChatStore';
 import { usePipelineInspectorStore } from '../stores/usePipelineInspectorStore';
 import { PipelineInspector } from '../components/PipelineInspector';
+import { VideoCard } from '../components/VideoCard';
+import { ComparisonView } from '../components/ComparisonView';
 
 interface Citation {
   source?: string;
@@ -29,6 +31,10 @@ interface Message {
   content: string;
   citations?: Citation[];
   isStreaming?: boolean;
+  uiComponents?: {
+    type: 'video_card' | 'comparison_view' | 'error_card';
+    props: any;
+  }[];
 }
 
 function ChatPage() {
@@ -61,7 +67,8 @@ function ChatPage() {
           id: msg._id,
           role: msg.role,
           content: msg.content,
-          citations: msg.citations
+          citations: msg.citations,
+          uiComponents: msg.uiComponents
         }));
         setMessages(mappedMessages);
       } catch (error) {
@@ -84,7 +91,7 @@ function ChatPage() {
 
     const userMessage: Message = { id: Date.now().toString(), role: 'user', content: query };
     const assistantMsgId = (Date.now() + 1).toString();
-    const initialAssistantMessage: Message = { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true, citations: [] };
+    const initialAssistantMessage: Message = { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true, citations: [], uiComponents: [] };
 
     setMessages((prev) => [...prev, userMessage, initialAssistantMessage]);
     resetRun(Date.now().toString()); 
@@ -130,6 +137,16 @@ function ChatPage() {
               } else if (data.type === 'token') {
                 setMessages((prev) =>
                   prev.map((msg) => msg.id === assistantMsgId ? { ...msg, content: msg.content + data.token } : msg)
+                );
+              } else if (data.type === 'ui_component') {
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id === assistantMsgId) {
+                      const newComponents = [...(msg.uiComponents || []), { type: data.component, props: data.props }];
+                      return { ...msg, uiComponents: newComponents as any };
+                    }
+                    return msg;
+                  })
                 );
               } else if (data.type === 'pipeline_step') {
                 addStep(data.runId, data.payload);
@@ -252,7 +269,21 @@ function ChatPage() {
                       <div className="flex gap-5 items-start w-full">
                         <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold text-sm mt-1 shadow-md shrink-0">AI</div>
                         <div className="flex-1 space-y-5">
-                          <div className="text-[16px] leading-relaxed text-ink font-sans">
+                          
+                          {/* Generative UI Components */}
+                          {msg.uiComponents && msg.uiComponents.length > 0 && (
+                            <div className="flex flex-col gap-4 w-full">
+                              {msg.uiComponents.map((ui, idx) => (
+                                <div key={idx} className="w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                  {ui.type === 'video_card' && <VideoCard {...ui.props} />}
+                                  {ui.type === 'comparison_view' && <ComparisonView {...ui.props} />}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {msg.content && (
+                            <div className="text-[16px] leading-relaxed text-ink font-sans">
                             {msg.content === '' && msg.isStreaming ? (
                               <span className="flex items-center gap-2 text-muted text-sm font-medium">
                                 <RefreshCw size={16} className="animate-spin" /> Thinking and analyzing...
@@ -263,6 +294,7 @@ function ChatPage() {
                               </div>
                             )}
                           </div>
+                          )}
                           {msg.citations && msg.citations.length > 0 && (
                             <div className="space-y-3 pt-4 border-t border-border-light">
                               <span className="text-[12px] font-semibold text-muted uppercase tracking-wider block font-sans">Sources ({msg.citations.length})</span>
