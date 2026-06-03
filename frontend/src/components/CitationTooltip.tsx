@@ -18,7 +18,7 @@ interface CitationTooltipProps {
 export const CitationTooltip: React.FC<CitationTooltipProps> = ({ index, citation }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!citation) return <span className="text-on-primary bg-surface-night rounded-xs px-1.5 font-bold">[{index}]</span>;
+  if (!citation) return <span className="text-[11px] font-bold text-accent-violet bg-accent-violet/10 rounded-sm px-1.5 py-0.5 relative -top-0.5">[{index}]</span>;
 
   return (
     <span 
@@ -26,7 +26,7 @@ export const CitationTooltip: React.FC<CitationTooltipProps> = ({ index, citatio
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
-      <span className="text-[12px] font-bold text-on-primary bg-surface-night px-1.5 py-0.5 rounded-xs cursor-pointer hover:bg-accent-violet transition-colors">
+      <span className="text-[11px] font-bold text-accent-violet bg-accent-violet/10 px-1.5 py-0.5 rounded-sm cursor-pointer hover:bg-accent-violet hover:text-white transition-colors relative -top-0.5">
         {index}
       </span>
 

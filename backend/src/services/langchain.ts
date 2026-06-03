@@ -102,5 +102,24 @@ Strict Rules:
     } catch (error) {
       return currentQuery;
     }
+  },
+
+  async classifyIntent(query: string): Promise<'METADATA_ONLY' | 'REQUIRES_TRANSCRIPT'> {
+    const prompt = `You are a query intent router.
+Determine if the following user query can be answered STRICTLY by looking at basic video metadata (e.g., views, likes, comments, engagement rate, creator name, title, or simple comparisons of these numbers).
+If the query asks about the content of the video, hooks, pacing, summary, or what was said, you must classify it as REQUIRES_TRANSCRIPT.
+If the query ONLY asks about numerical metrics, titles, or creator names, classify it as METADATA_ONLY.
+
+User Query: "${query}"
+
+Respond with ONLY the exact string "METADATA_ONLY" or "REQUIRES_TRANSCRIPT" and nothing else.`;
+
+    try {
+      const response = await llm.invoke([new HumanMessage(prompt)]);
+      const result = response.content.toString().trim();
+      return result === 'METADATA_ONLY' ? 'METADATA_ONLY' : 'REQUIRES_TRANSCRIPT';
+    } catch (error) {
+      return 'REQUIRES_TRANSCRIPT'; // Default to full retrieval on error
+    }
   }
 };

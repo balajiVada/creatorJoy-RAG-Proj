@@ -319,7 +319,7 @@ function ChatPage() {
                             </div>
                           ) : msg.content ? (
                             <div className="text-[16px] leading-relaxed text-ink font-sans">
-                              <div className="prose max-w-none">
+                              <div className="prose prose-zinc max-w-none prose-headings:font-bold prose-headings:text-ink prose-p:text-ink/90 prose-strong:text-ink prose-strong:font-bold prose-a:text-accent-violet prose-li:text-ink/90 prose-li:marker:text-accent-violet-deep prose-blockquote:border-accent-violet prose-blockquote:bg-surface-press-stronger prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:rounded-r-md prose-blockquote:not-italic prose-blockquote:text-ink/80">
                                 <ReactMarkdown 
                                   remarkPlugins={[remarkGfm]}
                                   rehypePlugins={[rehypeRaw]}

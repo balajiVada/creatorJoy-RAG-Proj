@@ -144,32 +144,12 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     chatSession.messageCount += 1;
     await chatSession.save();
 
-    // 4. Intent Decision: If only URLs were sent, just return a confirmation
+    // 4. Intent Decision: Auto-Insight Generation for pure URL ingestions
+    let queryToProcess = textContent;
     if (!textContent && urls.length > 0) {
-      const confirmMsg = `I have successfully ingested ${newUrlsToIngest.length} new video(s). What would you like to know about them?`;
-      
-      await ChatMessage.create({
-        chatSessionId: chatSession._id,
-        role: 'assistant',
-        content: confirmMsg,
-        uiComponents // Save UI Components to DB
-      });
-      chatSession.messageCount += 1;
-      chatSession.lastMessageAt = new Date();
-      await chatSession.save();
-
-      // Emit UI components
-      if (uiComponents.length > 0) {
-        uiComponents.forEach(ui => {
-          res.write(`data: ${JSON.stringify({ type: 'ui_component', component: ui.type, props: ui.props })}\n\n`);
-        });
-      }
-
-      // We must send the sessionId to the client so it knows the new session ID
-      res.write(`data: ${JSON.stringify({ type: 'citations', citations: [], sessionId: chatSession._id })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: 'token', token: confirmMsg })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-      return res.end();
+      queryToProcess = urls.length > 1 
+        ? "Analyze the hooks, pacing, and engagement of the videos I just provided. Which one performed better and what can I learn from it to improve my own content? Compare them directly."
+        : "Analyze the hook, storytelling, and engagement of the video I just provided. Provide actionable recommendations on how I can apply these strategies to my own content.";
     }
 
     // 5. Retrieval Pipeline (for actual text queries)
@@ -181,58 +161,69 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
 
     const memoryContext = history.map(msg => ({ role: msg.role, content: msg.content }));
 
-    const rewrittenQuery = await llmService.rewriteQuery(textContent, memoryContext);
+    const rewrittenQuery = await llmService.rewriteQuery(queryToProcess, memoryContext);
     
-    // Query pinecone filtered by chatSessionId
-    const embeddedQuery = await vectorService.embedText(rewrittenQuery);
-    const matches = await vectorService.querySimilarity(embeddedQuery, 6, { sessionId: chatSession._id.toString() });
-
+    // NEW: Intent Classification for metadata routing
+    const intent = await llmService.classifyIntent(rewrittenQuery);
+    
     // Fetch all metadata for this session to inject into prompt and citations
     const allMetadata = await VideoMetadata.find({ chatSessionId: chatSession._id });
     
     // Create lookup map
     const metadataMap = new Map(allMetadata.map(md => [md._id.toString(), md]));
 
-    const citations = matches.map(match => {
-      const videoId = match.metadata?.videoId;
-      const md = videoId ? metadataMap.get(videoId.toString()) : null;
-      
-      return {
-        source: match.metadata?.source,
-        chunkIndex: match.metadata?.chunkIndex,
-        text: match.metadata?.text,
-        score: match.score,
-        title: md?.title,
-        thumbnail: md?.thumbnail
-      };
+    let citations: any[] = [];
+    
+    // First, add all metadata as base citations so the LLM can cite general video facts
+    allMetadata.forEach((md) => {
+      citations.push({
+        source: md.platform,
+        text: `Creator: ${md.creatorName}, Views: ${md.views}, Likes: ${md.likes}, Comments: ${md.comments}, Engagement: ${md.engagementRate}%.`,
+        title: md.title,
+        thumbnail: md.thumbnail
+      });
     });
 
-    const contextText = citations.map((match, idx) => `[${idx + 1}] Source: ${match.source} (${match.title})\nText: ${match.text}`).join('\n\n');
+    if (intent === 'REQUIRES_TRANSCRIPT') {
+      const embeddedQuery = await vectorService.embedText(rewrittenQuery);
+      const matches = await vectorService.querySimilarity(embeddedQuery, 6, { sessionId: chatSession._id.toString() });
 
-    const metadataStats = allMetadata.map(md => 
-      `${md.platform.toUpperCase()} (${md.url}): Views: ${md.views}, Likes: ${md.likes}, Engagement: ${md.engagementRate}%`
-    ).join('\n');
+      matches.forEach(match => {
+        const videoId = match.metadata?.videoId;
+        const md = videoId ? metadataMap.get(videoId.toString()) : null;
+        
+        citations.push({
+          source: match.metadata?.source,
+          chunkIndex: match.metadata?.chunkIndex,
+          text: match.metadata?.text,
+          score: match.score,
+          title: md?.title,
+          thumbnail: md?.thumbnail
+        });
+      });
+    }
 
-    const systemPrompt = `You are a Social Media Video Analyst.
-Your goal is to answer the user's question accurately using ONLY the provided document context chunks and metadata.
+    const contextText = citations.map((c, idx) => `[${idx + 1}] Source: ${c.title || c.source}\nText: ${c.text}`).join('\n\n');
 
-Ingested Videos Metadata:
-${metadataStats || 'No videos ingested yet.'}
+    const systemPrompt = `You are a Creator Performance Analyst & Coach.
+Your goal is to help the user understand why videos succeed, compare engagement metrics, and provide highly actionable advice for their own content strategy.
 
 Strict Guidelines:
-1. Base your answer solely on the provided metadata and context chunks. Do NOT use outside information.
-2. If the user asks to compare videos, compare their engagement and context effectively.
-3. If the answer cannot be found in the context, explicitly say so.
-4. Use the conversation memory ONLY for context, but answer based on the CONTEXT CHUNKS.
-5. MANDATORY: Whenever you state a fact, metric, or quote from the context chunks, you MUST include an inline citation using the <cite> tag referencing the 1-indexed chunk number, like <cite>1</cite>, <cite>2</cite>, etc.
+1. You may use your general knowledge of social media strategy (e.g., hooks, pacing, retention tactics) to analyze the provided data.
+2. If the user asks a question about metrics (views, likes, creator name), answer it using the Metadata provided in the CONTEXT.
+3. If the user asks about the content, refer to the transcript chunks in the CONTEXT.
+4. MANDATORY: Whenever you state a fact, metric, or quote, you MUST include an inline HTML citation tag like <cite>1</cite> or <cite>2</cite> matching the index in the CONTEXT below. Do NOT use plain brackets like [1] or [Video 1]. You must strictly use the <cite> HTML tag.
+5. If you are comparing videos, explicitly break down the differences in their hooks, storytelling, or engagement rates.
+6. MANDATORY: Use rich Markdown formatting (e.g., ### Headings, **bold text**, bullet points) to structure your answer cleanly. Do not output giant walls of plain text.
 
-CONTEXT CHUNKS:
-${contextText}`;
+CONTEXT (Metadata and Transcript Chunks):
+${citations.length > 0 ? contextText : 'No context loaded.'}
+`;
 
     const messages: LLMChatMessage[] = [
       { role: 'system', content: systemPrompt },
       ...memoryContext as LLMChatMessage[],
-      { role: 'user', content: textContent },
+      { role: 'user', content: queryToProcess },
     ];
 
     emitPipelineStep({ step: 'prompt_compiled', status: 'completed' });
