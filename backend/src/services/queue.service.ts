@@ -11,5 +11,5 @@ const connection = new IORedis({
 
 export const INGESTION_QUEUE_NAME = 'ingestion-queue';
 
-export const ingestionQueue = new Queue(INGESTION_QUEUE_NAME, { connection });
-export const ingestionQueueEvents = new QueueEvents(INGESTION_QUEUE_NAME, { connection });
+export const ingestionQueue = new Queue(INGESTION_QUEUE_NAME, { connection: connection as any });
+export const ingestionQueueEvents = new QueueEvents(INGESTION_QUEUE_NAME, { connection: connection as any });

@@ -1,6 +1,6 @@
 import { AzureChatOpenAI } from "@langchain/openai";
 import { GoogleGenAI } from '@google/genai';
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -35,16 +35,27 @@ export const embeddings = {
     return response.embeddings?.[0]?.values || [];
   },
   embedDocuments: async (texts: string[]): Promise<number[][]> => {
-    const results = await Promise.all(
-      texts.map(async (text) => {
-        const response = await ai.models.embedContent({
-          model: 'gemini-embedding-2',
-          contents: text,
-          config: { outputDimensionality: 768 }
-        });
-        return response.embeddings?.[0]?.values || [];
-      })
-    );
+    if (texts.length === 0) return [];
+    const batchSize = 100;
+    const results: number[][] = [];
+    
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batchTexts = texts.slice(i, i + batchSize);
+      const response = await ai.models.embedContent({
+        model: 'gemini-embedding-2',
+        contents: batchTexts,
+        config: {
+          outputDimensionality: 768,
+        }
+      });
+      
+      const embeddingsList = response.embeddings || [];
+      embeddingsList.forEach((emb) => {
+        if (emb && emb.values) {
+          results.push(emb.values);
+        }
+      });
+    }
     return results;
   }
 };
@@ -58,7 +69,7 @@ export const llmService = {
   async generateResponse(messages: ChatMessage[], onToken?: (token: string) => void) {
     const langchainMessages = messages.map(m => {
       if (m.role === 'system') return new SystemMessage(m.content);
-      if (m.role === 'assistant') return new HumanMessage(m.content);
+      if (m.role === 'assistant') return new AIMessage(m.content);
       return new HumanMessage(m.content);
     });
 

@@ -334,7 +334,7 @@ function ChatPage() {
                                     }
                                   }}
                                 >
-                                  {msg.content}
+                                  {msg.content.replace(/(?<![a-zA-Z0-9])\[(\d+)\]/g, '<cite>$1</cite>')}
                                 </ReactMarkdown>
                               </div>
                             </div>

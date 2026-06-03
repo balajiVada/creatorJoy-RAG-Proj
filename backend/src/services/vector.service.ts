@@ -22,7 +22,7 @@ export class VectorService {
       throw new Error("Pinecone client is not initialized.");
     }
 
-    const index = pinecone.Index(PINECONE_INDEX_NAME);
+    const index = pinecone.Index(PINECONE_INDEX_NAME).namespace(sessionId);
     const vectors = await this.embedDocuments(chunks);
 
     const records = chunks.map((chunkText, idx) => {
@@ -54,14 +54,42 @@ export class VectorService {
     if (!pinecone) {
       throw new Error("Pinecone client is not initialized.");
     }
-    const index = pinecone.Index(PINECONE_INDEX_NAME);
-    const response = await index.query({
+    
+    const ns = filter?.sessionId;
+    const index = ns 
+      ? pinecone.Index(PINECONE_INDEX_NAME).namespace(ns)
+      : pinecone.Index(PINECONE_INDEX_NAME);
+
+    const queryOptions: any = {
       vector,
       topK,
       includeMetadata: true,
-      filter,
-    });
+    };
+
+    if (filter) {
+      const cleanFilter = { ...filter };
+      if (ns) {
+        delete cleanFilter.sessionId;
+      }
+      if (Object.keys(cleanFilter).length > 0) {
+        queryOptions.filter = cleanFilter;
+      }
+    }
+
+    const response = await index.query(queryOptions);
     return response.matches || [];
+  }
+
+  async deleteSessionVectors(sessionId: string): Promise<void> {
+    if (!pinecone) return;
+    try {
+      const index = pinecone.Index(PINECONE_INDEX_NAME);
+      await index.namespace(sessionId).deleteAll();
+    } catch (error) {
+      // Don't throw, just log warning as database cleanup shouldn't block main deletes
+      const log = require('../utils/logger').logger;
+      log.warn({ err: error, sessionId }, "Failed to delete Pinecone namespace vectors");
+    }
   }
 }
 

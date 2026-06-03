@@ -317,6 +317,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<any> =
     await ChatSession.findByIdAndDelete(id);
     await ChatMessage.deleteMany({ chatSessionId: id });
     await VideoMetadata.deleteMany({ chatSessionId: id });
+    await vectorService.deleteSessionVectors(id as string);
     return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: 'Server error' });

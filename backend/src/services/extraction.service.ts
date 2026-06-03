@@ -35,6 +35,21 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
       const likeMatch = html.match(/"likeCount":"(\d+)"/);
       if (likeMatch) likes = parseInt(likeMatch[1], 10);
 
+      // Extract comment count using multiple potential patterns
+      let commentMatch = html.match(/"commentCountText"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\d,]+)"/);
+      if (!commentMatch) {
+        commentMatch = html.match(/"commentCount"\s*:\s*\{\s*"simpleText"\s*:\s*"([\d,]+)"/);
+      }
+      if (!commentMatch) {
+        commentMatch = html.match(/"commentCount"\s*:\s*"(\d+)"/);
+      }
+      if (!commentMatch) {
+        commentMatch = html.match(/"commentCountText"\s*:\s*\{\s*"simpleText"\s*:\s*"([\d,]+)"/);
+      }
+      if (commentMatch) {
+        comments = parseInt(commentMatch[1].replace(/,/g, ''), 10);
+      }
+
       const titleMatch = html.match(/<meta property="og:title" content="([^"]+)"/);
       if (titleMatch) title = titleMatch[1];
 

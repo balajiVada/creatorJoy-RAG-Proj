@@ -66,4 +66,4 @@ export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job)
     await job.updateProgress({ step: `ingestion_failed`, status: 'error', url, error: err.message });
     throw err;
   }
-}, { connection });
+}, { connection: connection as any });
