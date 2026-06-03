@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, AlertTriangle, Globe, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Globe, RefreshCcw } from 'lucide-react';
 
 export interface ErrorCardProps {
   url: string;
