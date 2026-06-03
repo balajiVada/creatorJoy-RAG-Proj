@@ -43,4 +43,6 @@ const startServer = async () => {
   });
 };
 
+import './workers/ingestion.worker';
+
 startServer();
