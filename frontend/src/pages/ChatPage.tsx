@@ -16,6 +16,8 @@ import rehypeRaw from 'rehype-raw';
 import { useChatStore } from '../stores/useChatStore';
 import { usePipelineInspectorStore } from '../stores/usePipelineInspectorStore';
 import { PipelineInspector } from '../components/PipelineInspector';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5005/api';
 import { VideoCard } from '../components/VideoCard';
 import { ComparisonView } from '../components/ComparisonView';
 import { CitationTooltip } from '../components/CitationTooltip';
@@ -64,7 +66,7 @@ function ChatPage() {
         return;
       }
       try {
-        const response = await fetch(`http://localhost:5005/api/chat/sessions/${activeSessionId}/messages`);
+        const response = await fetch(`${API_URL}/chat/sessions/${activeSessionId}/messages`);
         const data = await response.json();
         const mappedMessages = data.map((msg: any) => ({
           id: msg._id,
@@ -100,7 +102,7 @@ function ChatPage() {
     resetRun(Date.now().toString()); 
 
     try {
-      const response = await fetch(`http://localhost:5005/api/chat`, {
+      const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: query, sessionId: activeSessionId }),
