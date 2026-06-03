@@ -64,12 +64,34 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     const uiComponents: any[] = [];
     const newlyIngestedMetadata: any[] = [];
 
-    urls.forEach((url) => {
+    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[a-zA-Z0-9_-]{11}/i;
+    const instagramRegex = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:reel|p)\/[a-zA-Z0-9_-]+/i;
+
+    for (const url of urls) {
+      const isYT = youtubeRegex.test(url);
+      const isIG = instagramRegex.test(url);
+
+      if (!isYT && !isIG) {
+        emitPipelineStep({ 
+          step: 'ingestion_failed', 
+          status: 'error', 
+          url, 
+          error: 'Unsupported URL platform. Only YouTube and Instagram Reels/Posts are supported.' 
+        });
+        
+        res.write(`data: ${JSON.stringify({ 
+          type: 'ui_component', 
+          component: 'error_card', 
+          props: { url, error: 'Unsupported URL platform. Please provide a valid YouTube or Instagram link.' } 
+        })}\n\n`);
+        continue;
+      }
+
       const alreadyIngested = chatSession.ingestedVideos.some(v => v.url === url);
       if (!alreadyIngested) {
         newUrlsToIngest.push(url);
       }
-    });
+    }
 
     // 3. Ingestion Pipeline (if new URLs detected)
     if (newUrlsToIngest.length > 0) {
@@ -79,25 +101,71 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
         try {
           emitPipelineStep({ step: 'ingestion_started', status: 'processing', url });
           
-          const job = await ingestionQueue.add('ingest-video', { url, chatSessionId: chatSession._id.toString() });
+          // Check if video exists globally in database (re-use cache)
+          const existingMetadata = await VideoMetadata.findOne({ url, extractionStatus: 'success' });
           
-          const progressListener = (args: { jobId: string; data: any | string }) => {
-            if (args.jobId === job.id) {
-              emitPipelineStep(args.data);
+          if (existingMetadata) {
+            logger.info(`Global metadata cache hit for ${url}. Reusing existing extraction.`);
+            
+            // Clone Pinecone vectors from old session namespace to current session namespace
+            await vectorService.cloneVectorsToNewSession(
+              existingMetadata.chatSessionId.toString(),
+              chatSession._id.toString(),
+              existingMetadata._id.toString()
+            );
+
+            // Create a session-specific copy of the metadata
+            const newMetadata = await VideoMetadata.create({
+              url,
+              platform: existingMetadata.platform,
+              chatSessionId: chatSession._id,
+              transcript: existingMetadata.transcript,
+              views: existingMetadata.views,
+              likes: existingMetadata.likes,
+              comments: existingMetadata.comments,
+              engagementRate: existingMetadata.engagementRate,
+              extractionStatus: 'success',
+              extractedAt: new Date(),
+              title: existingMetadata.title,
+              thumbnail: existingMetadata.thumbnail,
+              creatorName: existingMetadata.creatorName
+            });
+
+            chatSession.ingestedVideos.push({ url, metadataId: newMetadata._id as any });
+            await chatSession.save();
+
+            newlyIngestedMetadata.push(newMetadata.toJSON());
+            
+            const platformName = existingMetadata.platform === 'youtube' ? 'youtube' : 'instagram';
+            emitPipelineStep({ step: `ingested_${platformName}`, status: 'completed', url, cached: true });
+          } else {
+            // Not cached, run scraping job in worker queue
+            const job = await ingestionQueue.add('ingest-video', { url, chatSessionId: chatSession._id.toString() });
+            
+            const progressListener = (args: { jobId: string; data: any | string }) => {
+              if (args.jobId === job.id) {
+                emitPipelineStep(args.data);
+              }
+            };
+            
+            ingestionQueueEvents.on('progress', progressListener);
+            
+            try {
+              const metadata = await job.waitUntilFinished(ingestionQueueEvents);
+              newlyIngestedMetadata.push(metadata);
+            } finally {
+              ingestionQueueEvents.off('progress', progressListener);
             }
-          };
-          
-          ingestionQueueEvents.on('progress', progressListener);
-          
-          try {
-            const metadata = await job.waitUntilFinished(ingestionQueueEvents);
-            newlyIngestedMetadata.push(metadata);
-          } finally {
-            ingestionQueueEvents.off('progress', progressListener);
           }
         } catch (err: any) {
           logger.error(`Failed to queue/ingest ${url}`, err);
           emitPipelineStep({ step: `ingestion_failed`, status: 'error', url, error: err.message });
+          
+          res.write(`data: ${JSON.stringify({ 
+            type: 'ui_component', 
+            component: 'error_card', 
+            props: { url, error: err.message || 'Failed to ingest video' } 
+          })}\n\n`);
         }
       }
 

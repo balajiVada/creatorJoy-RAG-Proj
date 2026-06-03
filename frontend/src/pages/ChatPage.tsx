@@ -19,6 +19,7 @@ import { PipelineInspector } from '../components/PipelineInspector';
 import { VideoCard } from '../components/VideoCard';
 import { ComparisonView } from '../components/ComparisonView';
 import { CitationTooltip } from '../components/CitationTooltip';
+import { ErrorCard } from '../components/ErrorCard';
 
 interface Citation {
   source?: string;
@@ -306,6 +307,12 @@ function ChatPage() {
                                 <div key={idx} className="w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
                                   {ui.type === 'video_card' && <VideoCard {...ui.props} />}
                                   {ui.type === 'comparison_view' && <ComparisonView {...ui.props} />}
+                                  {ui.type === 'error_card' && (
+                                    <ErrorCard 
+                                      {...ui.props} 
+                                      onRetry={() => handleSend(ui.props.url)} 
+                                    />
+                                  )}
                                 </div>
                               ))}
                             </div>
