@@ -11,7 +11,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
 });
 
 export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job) => {
@@ -38,7 +39,11 @@ export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job)
       extractedAt: new Date(),
       title: data.title,
       thumbnail: data.thumbnail,
-      creatorName: data.creatorName
+      creatorName: data.creatorName,
+      followerCount: data.followerCount,
+      hashtags: data.hashtags,
+      uploadDate: data.uploadDate,
+      duration: data.duration
     });
     
     const chunks = await chunkingService.splitText(data.transcript);
@@ -64,4 +69,8 @@ export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job)
     await job.updateProgress({ step: `ingestion_failed`, status: 'error', url, error: err.message });
     throw err;
   }
-}, { connection: connection as any });
+}, { 
+  connection: connection as any,
+  stalledInterval: 300000, // CRITICAL: Set to 5 minutes to drastically reduce polling (cannot be 0)
+  metrics: { maxDataPoints: 0 } as any
+});

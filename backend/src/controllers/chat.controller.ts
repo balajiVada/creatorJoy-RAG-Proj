@@ -192,13 +192,8 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     chatSession.messageCount += 1;
     await chatSession.save();
 
-    // 4. Intent Decision: Auto-Insight Generation for pure URL ingestions
-    let queryToProcess = textContent;
-    if (!textContent && urls.length > 0) {
-      queryToProcess = urls.length > 1 
-        ? "Analyze the hooks, pacing, and engagement of the videos I just provided. Which one performed better and what can I learn from it to improve my own content? Compare them directly."
-        : "Analyze the hook, storytelling, and engagement of the video I just provided. Provide actionable recommendations on how I can apply these strategies to my own content.";
-    }
+    // 4. Determine Query to Process
+    const queryToProcess = message;
 
     // 5. Retrieval Pipeline (for actual text queries)
     const history = await ChatMessage.find({ chatSessionId: chatSession._id })
@@ -235,7 +230,7 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     allMetadata.forEach((md) => {
       citations.push({
         source: md.platform,
-        text: `Creator: ${md.creatorName}, Views: ${md.views}, Likes: ${md.likes}, Comments: ${md.comments}, Engagement: ${md.engagementRate}%.`,
+        text: `Creator: ${md.creatorName}, Followers: ${md.followerCount || 'N/A'}, Views: ${md.views}, Likes: ${md.likes}, Comments: ${md.comments}, Engagement: ${md.engagementRate}%, Uploaded: ${md.uploadDate ? new Date(md.uploadDate).toLocaleDateString() : 'Unknown'}, Duration: ${md.duration || 'Unknown'}, Hashtags: ${md.hashtags?.join(', ') || 'None'}.`,
         title: md.title,
         thumbnail: md.thumbnail
       });
@@ -278,16 +273,39 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
       chunksUsed: citations.length
     });
 
-    const systemPrompt = `You are a Creator Performance Analyst & Coach.
-Your goal is to help the user understand why videos succeed, compare engagement metrics, and provide highly actionable advice for their own content strategy.
+    const systemPrompt = `You are an advanced Creator Performance Analyst & Coach, deeply integrated into a backend system.
+The system automatically scrapes, processes, and provides you with the transcripts and metadata for any Instagram or YouTube URLs the user drops into the chat.
 
-Strict Guidelines:
-1. You may use your general knowledge of social media strategy (e.g., hooks, pacing, retention tactics) to analyze the provided data.
-2. If the user asks a question about metrics (views, likes, creator name), answer it using the Metadata provided in the CONTEXT.
-3. If the user asks about the content, refer to the transcript chunks in the CONTEXT.
-4. MANDATORY: Whenever you state a fact, metric, or quote, you MUST include an inline HTML citation tag like <cite>1</cite> or <cite>2</cite> matching the index in the CONTEXT below. Do NOT use plain brackets like [1] or [Video 1]. You must strictly use the <cite> HTML tag.
-5. If you are comparing videos, explicitly break down the differences in their hooks, storytelling, or engagement rates.
-6. MANDATORY: Use rich Markdown formatting (e.g., ### Headings, **bold text**, bullet points) to structure your answer cleanly. Do not output giant walls of plain text.
+CRITICAL RULES FOR HANDLING URLs:
+1. The user's query may contain raw URLs. The content for these URLs has ALREADY been extracted and is provided to you in the CONTEXT below.
+2. YOU MUST NEVER say "I cannot directly open links", "I don't have internet access", or anything similar. You are an integrated system. You HAVE the data.
+3. If the user only pastes a URL, your job is to proactively analyze its hook, storytelling, and engagement strategy using the CONTEXT.
+
+GENERAL GUIDELINES:
+- Use your knowledge of social media strategy to explain *why* something worked (hooks, pacing, retention tactics).
+- When you state a fact, metric, or quote, you MUST use an inline HTML citation tag like <cite>1</cite> or <cite>2</cite> matching the index in the CONTEXT. Do NOT use plain brackets like [1].
+- Use rich Markdown formatting (Headings, bullet points, bold text).
+- If comparing videos, explicitly break down differences in their hooks, storytelling, or engagement rates.
+
+---
+FEW-SHOT EXAMPLES:
+
+Example 1: Single URL
+User: "https://www.instagram.com/reel/DY7SJ3AlZz_/"
+Assistant: "This Reel by Leonardo Dreyer uses an excellent rapid-fire hook. Let's break down why it works:<br><br>### The Hook<br>He immediately jumps into the pronunciation correction without any fluff <cite>2</cite>. <br><br>### Performance<br>The engagement rate sits at a solid 7.04% <cite>1</cite>, which shows the audience found it highly educational..."
+
+Example 2: Multiple URLs
+User: "Which of these two hooks is better? [URL 1] and [URL 2]"
+Assistant: "Between these two videos, [URL 1] has a much stronger retention strategy. While the first video immediately establishes the problem <cite>3</cite>, the second video wastes 5 seconds on an intro graphic <cite>5</cite>..."
+
+Example 3: Follow-up Question
+User: "How can I apply that same hook to a fitness video?"
+Assistant: "To adapt that rapid-fire hook for a fitness context, you could start immediately with: 'It's not a squat, it's a *squat*.' Don't do an intro, just jump straight into the form correction..."
+
+Example 4: Normal Conversation (No URLs)
+User: "What makes a good hook on Instagram Reels?"
+Assistant: "A great hook on Reels needs to capture attention within the first 3 seconds. The best strategies include..."
+---
 
 CONTEXT (Metadata and Transcript Chunks):
 ${citations.length > 0 ? contextText : 'No context loaded.'}

@@ -14,6 +14,10 @@ export interface IVideoMetadata extends Document {
   title?: string;
   thumbnail?: string;
   creatorName?: string;
+  followerCount?: number;
+  hashtags?: string[];
+  uploadDate?: Date;
+  duration?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +37,10 @@ const VideoMetadataSchema = new Schema<IVideoMetadata>(
     title: { type: String },
     thumbnail: { type: String },
     creatorName: { type: String },
+    followerCount: { type: Number },
+    hashtags: [{ type: String }],
+    uploadDate: { type: Date },
+    duration: { type: String },
   },
   { timestamps: true }
 );

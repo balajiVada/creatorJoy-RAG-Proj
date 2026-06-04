@@ -1,4 +1,5 @@
 import { YoutubeTranscript } from 'youtube-transcript';
+import { AssemblyAI } from 'assemblyai';
 import { logger } from '../utils/logger';
 
 export interface ExtractedData {
@@ -10,6 +11,10 @@ export interface ExtractedData {
   title?: string;
   thumbnail?: string;
   creatorName?: string;
+  followerCount?: number;
+  hashtags?: string[];
+  uploadDate?: Date;
+  duration?: string;
 }
 
 function extractYouTubeId(url: string): string | null {
@@ -36,6 +41,10 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
     let title = '';
     let thumbnail = '';
     let creatorName = '';
+    let followerCount: number | undefined;
+    let hashtags: string[] | undefined;
+    let uploadDate: Date | undefined;
+    let duration: string | undefined;
 
     const apiKey = process.env.YOUTUBE_API_KEY;
     const videoId = extractYouTubeId(url);
@@ -44,7 +53,7 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
     if (apiKey && videoId) {
       try {
         logger.info(`Fetching YouTube metadata via Data API v3 for ID: ${videoId}`);
-        const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${apiKey}`;
+        const apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoId}&key=${apiKey}`;
         const response = await fetch(apiUrl);
         if (response.ok) {
           const data = await response.json();
@@ -56,8 +65,29 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
             title = item.snippet?.title || '';
             creatorName = item.snippet?.channelTitle || '';
             thumbnail = item.snippet?.thumbnails?.maxres?.url || item.snippet?.thumbnails?.high?.url || '';
+            
+            duration = item.contentDetails?.duration;
+            uploadDate = item.snippet?.publishedAt ? new Date(item.snippet.publishedAt) : undefined;
+            hashtags = item.snippet?.tags || [];
+            
             apiSuccess = true;
             logger.info(`Successfully fetched YouTube metadata via API for ${videoId}`);
+            
+            const channelId = item.snippet?.channelId;
+            if (channelId) {
+              try {
+                const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${apiKey}`;
+                const channelRes = await fetch(channelUrl);
+                if (channelRes.ok) {
+                  const channelData = await channelRes.json();
+                  if (channelData.items && channelData.items.length > 0) {
+                    followerCount = parseInt(channelData.items[0].statistics?.subscriberCount || '0', 10);
+                  }
+                }
+              } catch (channelErr: any) {
+                logger.warn(`Failed to fetch YouTube channel metadata: ${channelErr.message}`);
+              }
+            }
           }
         }
       } catch (err: any) {
@@ -115,7 +145,11 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
       engagementRate: parseFloat(engagementRate.toFixed(2)),
       title,
       thumbnail,
-      creatorName
+      creatorName,
+      followerCount,
+      hashtags,
+      uploadDate,
+      duration
     };
   } catch (error: any) {
     logger.error({ err: error, url }, "Failed to extract YouTube data");
@@ -132,7 +166,7 @@ function shortcodeToId(shortcode: string): string {
   return id.toString();
 }
 
-export const extractInstagramData = async (url: string) => {
+export const extractInstagramData = async (url: string): Promise<ExtractedData> => {
   try {
     const apifyToken = process.env.APIFY_TOKEN;
     let views = 0;
@@ -142,6 +176,10 @@ export const extractInstagramData = async (url: string) => {
     let title = '';
     let thumbnail = '';
     let creatorName = '';
+    let followerCount: number | undefined;
+    let hashtags: string[] | undefined;
+    let uploadDate: Date | undefined;
+    let mediaUrl = '';
     let apiSuccess = false;
 
     if (apifyToken) {
@@ -171,6 +209,12 @@ export const extractInstagramData = async (url: string) => {
             thumbnail = data.displayUrl || data.thumbnailUrl || '';
             creatorName = data.ownerUsername || '';
             title = data.title || (transcript.length > 50 ? transcript.substring(0, 50) + '...' : transcript);
+            
+            followerCount = data.ownerFollowersCount || data.owner?.followersCount;
+            uploadDate = data.timestamp ? new Date(data.timestamp) : undefined;
+            hashtags = data.hashtags || (transcript ? transcript.match(/#[\w]+/g) : []) || [];
+            mediaUrl = data.audioUrl || data.videoUrl || '';
+            
             apiSuccess = true;
             logger.info(`Successfully extracted Instagram data via Apify for ${url}`);
           }
@@ -226,7 +270,29 @@ export const extractInstagramData = async (url: string) => {
       title = data.title || transcript.substring(0, 50) + '...';
       thumbnail = data.thumbnail_url || data.display_url || '';
       creatorName = data.user?.username || data.owner?.username || '';
+      followerCount = data.user?.follower_count || data.owner?.follower_count;
+      uploadDate = data.taken_at ? new Date(data.taken_at * 1000) : undefined;
+      hashtags = transcript ? transcript.match(/#[\w]+/g) || [] : [];
+      mediaUrl = data.video_url || '';
+      
       logger.info(`Successfully extracted Instagram data for ${shortcode} (Media ID: ${mediaId})`);
+    }
+
+    // Secondary process for actual audio transcript using AssemblyAI
+    if (mediaUrl && process.env.ASSEMBLYAI_API_KEY) {
+      try {
+        logger.info(`Starting AssemblyAI transcription for ${url}`);
+        const client = new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY });
+        const transcriptResponse = await client.transcripts.transcribe({
+          audio: mediaUrl
+        });
+        if (transcriptResponse.text) {
+          transcript = transcriptResponse.text;
+          logger.info(`Successfully extracted true audio transcript via AssemblyAI for ${url}`);
+        }
+      } catch (err: any) {
+        logger.warn(`Failed to extract true audio transcript via AssemblyAI, falling back to caption: ${err.message}`);
+      }
     }
 
     if (!transcript) {
@@ -246,7 +312,11 @@ export const extractInstagramData = async (url: string) => {
       engagementRate,
       title,
       thumbnail,
-      creatorName
+      creatorName,
+      followerCount,
+      hashtags,
+      uploadDate,
+      duration: undefined
     };
   } catch (error: any) {
     logger.error({ err: error }, 'Failed to extract Instagram data');
