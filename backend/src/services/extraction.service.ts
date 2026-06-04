@@ -23,20 +23,22 @@ function extractYouTubeId(url: string): string | null {
   return (match && match[2].length === 11) ? match[2] : null;
 }
 
-export const extractYouTubeData = async (url: string): Promise<ExtractedData> => {
+export const extractYouTubeData = async (url: string, metadataOnly = false): Promise<ExtractedData> => {
   try {
     let transcript = '';
-    try {
-      // 1. Fetch transcript with timestamps
-      const transcriptChunks = await YoutubeTranscript.fetchTranscript(url);
-      transcript = transcriptChunks.map(chunk => {
-        // chunk.offset is in milliseconds
-        const offsetSec = Math.floor(chunk.offset / 1000);
-        return `[${offsetSec}s - ${offsetSec + Math.max(1, Math.floor(chunk.duration / 1000))}s]: ${chunk.text}`;
-      }).join('\n');
-    } catch (err: any) {
-      logger.warn({ err, url }, "Failed to fetch YouTube transcript. Falling back to placeholder.");
-      transcript = "Transcript is disabled or unavailable for this video.";
+    if (!metadataOnly) {
+      try {
+        // 1. Fetch transcript with timestamps
+        const transcriptChunks = await YoutubeTranscript.fetchTranscript(url);
+        transcript = transcriptChunks.map(chunk => {
+          // chunk.offset is in milliseconds
+          const offsetSec = Math.floor(chunk.offset / 1000);
+          return `[${offsetSec}s - ${offsetSec + Math.max(1, Math.floor(chunk.duration / 1000))}s]: ${chunk.text}`;
+        }).join('\n');
+      } catch (err: any) {
+        logger.warn({ err, url }, "Failed to fetch YouTube transcript. Falling back to placeholder.");
+        transcript = "Transcript is disabled or unavailable for this video.";
+      }
     }
 
     let views = 0;
@@ -170,7 +172,7 @@ function shortcodeToId(shortcode: string): string {
   return id.toString();
 }
 
-export const extractInstagramData = async (url: string): Promise<ExtractedData> => {
+export const extractInstagramData = async (url: string, metadataOnly = false): Promise<ExtractedData> => {
   try {
     const apifyToken = process.env.APIFY_TOKEN;
     let views = 0;
@@ -286,7 +288,7 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
     }
 
     // Secondary process for actual audio transcript using AssemblyAI
-    if (mediaUrl && process.env.ASSEMBLYAI_API_KEY) {
+    if (!metadataOnly && mediaUrl && process.env.ASSEMBLYAI_API_KEY) {
       try {
         logger.info(`Starting AssemblyAI transcription for ${url}`);
         const client = new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY });

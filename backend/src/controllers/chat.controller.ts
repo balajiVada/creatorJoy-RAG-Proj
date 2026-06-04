@@ -7,8 +7,10 @@ import { ChatSession } from '../models/ChatSession';
 import { ChatMessage } from '../models/ChatMessage';
 import { VideoMetadata } from '../models/VideoMetadata';
 import { ingestionQueue, ingestionQueueEvents } from '../services/queue.service';
+import { extractYouTubeData, extractInstagramData } from '../services/extraction.service';
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export const handleChat = async (req: Request, res: Response): Promise<any> => {
   const { message, sessionId } = req.body;
@@ -109,8 +111,16 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
           // Check if video exists globally in database (re-use cache)
           const existingMetadata = await VideoMetadata.findOne({ url, extractionStatus: 'success' });
           
+          let isStale = false;
           if (existingMetadata) {
-            logger.info(`Global metadata cache hit for ${url}. Reusing existing extraction.`);
+            const ageMs = Date.now() - (existingMetadata.extractedAt?.getTime() || 0);
+            if (ageMs > CACHE_TTL_MS) {
+              isStale = true;
+            }
+          }
+
+          if (existingMetadata && !isStale) {
+            logger.info(`Global metadata cache hit (fresh) for ${url}. Reusing existing extraction.`);
             
             // Create a session-specific copy of the metadata
             const newMetadata = await VideoMetadata.create({
@@ -140,6 +150,52 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
             
             const platformName = existingMetadata.platform === 'youtube' ? 'youtube' : 'instagram';
             emitPipelineStep({ step: `ingested_${platformName}`, status: 'completed', url, cached: true });
+          } else if (existingMetadata && isStale) {
+            logger.info(`Cache is stale for ${url} (last fetched: ${existingMetadata.extractedAt}). Refreshing metadata...`);
+            emitPipelineStep({ step: 'metadata_refresh_started', status: 'processing', url });
+            
+            const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+            const freshData = isYouTube 
+              ? await extractYouTubeData(url, true) 
+              : await extractInstagramData(url, true);
+
+            // Update global cache entry
+            existingMetadata.views = freshData.views ?? existingMetadata.views;
+            existingMetadata.likes = freshData.likes ?? existingMetadata.likes;
+            existingMetadata.comments = freshData.comments ?? existingMetadata.comments;
+            existingMetadata.engagementRate = freshData.engagementRate ?? existingMetadata.engagementRate;
+            existingMetadata.followerCount = freshData.followerCount ?? existingMetadata.followerCount;
+            existingMetadata.extractedAt = new Date();
+            await existingMetadata.save();
+
+            // Create a session-specific copy of the metadata
+            const newMetadata = await VideoMetadata.create({
+              url,
+              platform: existingMetadata.platform,
+              chatSessionId: chatSession._id,
+              transcript: existingMetadata.transcript,
+              views: existingMetadata.views,
+              likes: existingMetadata.likes,
+              comments: existingMetadata.comments,
+              engagementRate: existingMetadata.engagementRate,
+              extractionStatus: 'success',
+              extractedAt: existingMetadata.extractedAt,
+              title: existingMetadata.title,
+              thumbnail: existingMetadata.thumbnail,
+              creatorName: existingMetadata.creatorName,
+              followerCount: existingMetadata.followerCount,
+              hashtags: existingMetadata.hashtags,
+              uploadDate: existingMetadata.uploadDate,
+              duration: existingMetadata.duration
+            });
+
+            chatSession.ingestedVideos.push({ url, metadataId: newMetadata._id as any });
+            await chatSession.save();
+
+            newlyIngestedMetadata.push(newMetadata.toJSON());
+            
+            const platformName = existingMetadata.platform === 'youtube' ? 'youtube' : 'instagram';
+            emitPipelineStep({ step: `ingested_${platformName}`, status: 'completed', url, refreshed: true });
           } else {
             // Not cached, run scraping job in worker queue
             const job = await ingestionQueue.add('ingest-video', { url, chatSessionId: chatSession._id.toString() });
