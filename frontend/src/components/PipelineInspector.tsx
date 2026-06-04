@@ -20,6 +20,7 @@ const getStepLabel = (step: string) => {
     query_received: 'Query Received',
     memory_loaded: 'Memory Loaded',
     query_rewritten: 'Query Rewritten',
+    intent_classified: 'Intent Classification',
     retrieval_started: 'Retrieval Started',
     semantic_search_completed: 'Semantic Search',
     keyword_search_completed: 'Keyword Search',

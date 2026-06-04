@@ -24,17 +24,12 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders(); 
 
-  let lastStepTime = Date.now();
-
   const emitPipelineStep = (step: any) => {
     const now = Date.now();
-    const durationMs = now - lastStepTime;
-    lastStepTime = now;
-    
     res.write(`data: ${JSON.stringify({ 
       type: 'pipeline_step', 
       runId,
-      payload: { ...step, timestamp: now, durationMs } 
+      payload: { ...step, timestamp: now } 
     })}\n\n`);
   };
 
@@ -206,17 +201,26 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
 
     const memoryContext = history.map(msg => ({ role: msg.role, content: msg.content }));
 
+    const rewriteStart = Date.now();
     const rewrittenQuery = await llmService.rewriteQuery(queryToProcess, memoryContext);
     
     emitPipelineStep({ 
       step: 'query_rewritten', 
       status: 'completed', 
+      durationMs: Date.now() - rewriteStart,
       rewrittenQuery: rewrittenQuery,
       wasRewritten: rewrittenQuery !== queryToProcess
     });
     
     // NEW: Intent Classification for metadata routing
+    const intentStart = Date.now();
     const intent = await llmService.classifyIntent(rewrittenQuery);
+    emitPipelineStep({ 
+      step: 'intent_classified', 
+      status: 'completed', 
+      durationMs: Date.now() - intentStart,
+      intent: intent
+    });
     
     // Fetch all metadata for this session to inject into prompt and citations
     const allMetadata = await VideoMetadata.find({ chatSessionId: chatSession._id });
@@ -239,12 +243,14 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     emitPipelineStep({ step: 'retrieval_started', status: 'processing' });
 
     if (intent === 'REQUIRES_TRANSCRIPT') {
+      const searchStart = Date.now();
       const embeddedQuery = await vectorService.embedText(rewrittenQuery);
       const matches = await vectorService.querySimilarity(embeddedQuery, 6, { sessionId: chatSession._id.toString() });
       
       emitPipelineStep({ 
         step: 'semantic_search_completed', 
         status: 'completed',
+        durationMs: Date.now() - searchStart,
         chunksRetrieved: matches.length,
         topScores: matches.map(m => m.score)
       });
@@ -334,6 +340,7 @@ ${citations.length > 0 ? contextText : 'No context loaded.'}
 
     emitPipelineStep({ step: 'generation_started', status: 'completed' });
 
+    const genStart = Date.now();
     let fullResponse = '';
     await llmService.generateResponse(messages, (token) => {
       fullResponse += token;
@@ -343,6 +350,7 @@ ${citations.length > 0 ? contextText : 'No context loaded.'}
     emitPipelineStep({ 
       step: 'generation_completed', 
       status: 'completed',
+      durationMs: Date.now() - genStart,
       totalTokens: Math.round(fullResponse.length / 4)
     });
 
