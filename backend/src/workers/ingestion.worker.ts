@@ -10,10 +10,8 @@ import { logger } from '../utils/logger';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const connection = new IORedis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  maxRetriesPerRequest: null,
+const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: null
 });
 
 export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job) => {
