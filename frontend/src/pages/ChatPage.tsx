@@ -21,7 +21,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5005/api';
 import { VideoCard } from '../components/VideoCard';
 import { ComparisonView } from '../components/ComparisonView';
 import { CitationTooltip } from '../components/CitationTooltip';
-import { ErrorCard } from '../components/ErrorCard';
 
 interface Citation {
   source?: string;
@@ -207,14 +206,19 @@ function ChatPage() {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 bg-canvas-dark bg-starfield text-on-primary flex flex-col shadow-xl transition-all duration-300 ease-in-out ${isSidebarExpanded ? 'w-[260px]' : 'w-[72px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className={`p-4 flex items-center ${isSidebarExpanded ? 'justify-between' : 'justify-center'} mt-2`}>
-          {isSidebarExpanded && <h1 className="text-xl font-bold font-display tracking-normal text-on-primary truncate px-2">Video RAG</h1>}
+          {isSidebarExpanded && (
+            <h1 className="text-[22px] font-bold font-display tracking-tight text-on-primary truncate px-2 flex items-center gap-1.5">
+              CreatorJoy
+              <span className="bg-accent-lime text-ink px-1.5 py-0 rounded-xs text-[11px] uppercase tracking-[0.5px] shadow-sm font-bold">AI</span>
+            </h1>
+          )}
           <button onClick={() => setIsSidebarExpanded(!isSidebarExpanded)} className="p-2 rounded-md hover:bg-white/10 text-white/70 hover:text-white hidden md:block">
             <PanelLeft size={20} />
           </button>
         </div>
         
         <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto relative z-10 pb-32">
-          <button onClick={() => { setActiveSession(null); setMessages([]); }} className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-[14px] font-bold uppercase tracking-[0.2px] text-on-primary bg-on-dark-faint hover:bg-surface-night transition-all border border-hairline-violet shadow-sm mb-6">
+          <button onClick={() => { setActiveSession(null); setMessages([]); }} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-md text-[14px] font-bold uppercase tracking-[0.2px] text-ink bg-on-primary hover:bg-soft-stone transition-all shadow-[0_2px_8px_0_rgba(0,0,0,0.08)] mb-6">
             <Plus size={16} />
             {isSidebarExpanded && <span>New Analysis</span>}
           </button>
@@ -229,7 +233,7 @@ function ChatPage() {
               ) : (
                 sessions.map(session => (
                   <div key={session._id} className="group relative flex items-center pr-1 mb-1">
-                    <button onClick={() => setActiveSession(session._id)} className={`flex-1 text-left px-3 py-2 rounded-md text-[14px] truncate transition-all font-medium ${activeSessionId === session._id ? 'bg-on-dark-faint text-on-primary shadow-sm' : 'text-on-dark-muted hover:bg-on-dark-faint/50 hover:text-on-primary'}`}>
+                    <button onClick={() => setActiveSession(session._id)} className={`flex-1 text-left px-3 py-2.5 rounded-md text-[14px] truncate transition-all font-medium ${activeSessionId === session._id ? 'bg-surface-night border border-hairline-violet text-on-primary shadow-sm' : 'text-on-dark-muted hover:bg-on-dark-faint hover:text-on-primary border border-transparent'}`}>
                       {session.title}
                     </button>
                     <button onClick={async (e) => { e.stopPropagation(); await deleteSession(session._id); if (activeSessionId === session._id) setMessages([]); }} className="absolute right-1 opacity-0 group-hover:opacity-100 p-1.5 text-on-dark-muted hover:text-error hover:bg-on-dark-faint rounded transition-all bg-canvas-dark" title="Delete Chat">
@@ -241,16 +245,6 @@ function ChatPage() {
             </>
           )}
         </nav>
-
-        {/* Sticker Mascot Layer (Sentry-style decorative floating element) */}
-        {isSidebarExpanded && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none -rotate-6">
-             <div className="w-16 h-16 bg-accent-pink rounded-xxl flex items-center justify-center shadow-lg border border-primary relative">
-                <span className="text-3xl rotate-12">👾</span>
-                <div className="absolute -bottom-2 -right-4 bg-accent-lime text-ink-press px-2 py-0.5 text-[9px] font-bold uppercase rounded-xs tracking-[0.25px] border border-primary shadow-sm whitespace-nowrap">Debugging</div>
-             </div>
-          </div>
-        )}
       </aside>
 
       {/* Main Content */}
@@ -294,7 +288,7 @@ function ChatPage() {
                 <div key={msg.id} className="space-y-4 animate-in">
                   <div className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'user' ? (
-                      <div className="bg-surface-night border border-hairline-violet text-on-primary rounded-xl px-6 py-4 text-[16px] max-w-[80%] shadow-md font-sans leading-relaxed whitespace-pre-wrap">
+                      <div className="bg-surface-night border border-hairline-violet text-on-primary rounded-xl px-6 py-4 text-[16px] max-w-[80%] shadow-md font-sans leading-normal whitespace-pre-wrap">
                         {renderUserMessage(msg.content)}
                       </div>
                     ) : (
@@ -309,26 +303,20 @@ function ChatPage() {
                                 <div key={idx} className="w-full animate-in fade-in slide-in-from-bottom-2 duration-500">
                                   {ui.type === 'video_card' && <VideoCard {...ui.props} />}
                                   {ui.type === 'comparison_view' && <ComparisonView {...ui.props} />}
-                                  {ui.type === 'error_card' && (
-                                    <ErrorCard 
-                                      {...ui.props} 
-                                      onRetry={() => handleSend(ui.props.url)} 
-                                    />
-                                  )}
                                 </div>
                               ))}
                             </div>
                           )}
 
                           {msg.content === '' && msg.isStreaming ? (
-                            <div className="text-[16px] leading-relaxed text-ink font-sans">
+                            <div className="text-[16px] leading-normal text-ink font-sans">
                               <span className="flex items-center gap-2 text-muted text-sm font-medium mt-2">
                                 <RefreshCw size={16} className="animate-spin text-accent-violet-deep" /> Analyzing intent & routing pipeline...
                               </span>
                             </div>
                           ) : msg.content ? (
-                            <div className="text-[16px] leading-relaxed text-ink font-sans">
-                              <div className="prose prose-zinc max-w-none prose-headings:font-bold prose-headings:text-ink prose-p:text-ink/90 prose-strong:text-ink prose-strong:font-bold prose-a:text-accent-violet prose-li:text-ink/90 prose-li:marker:text-accent-violet-deep prose-blockquote:border-accent-violet prose-blockquote:bg-surface-press-stronger prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:rounded-r-md prose-blockquote:not-italic prose-blockquote:text-ink/80">
+                            <div className="text-[16px] leading-normal text-ink font-sans">
+                              <div className="prose prose-zinc max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:font-bold prose-headings:text-ink prose-p:text-ink/90 prose-p:leading-normal prose-strong:text-ink prose-strong:font-bold prose-a:text-accent-violet prose-li:text-ink/90 prose-li:marker:text-accent-violet-deep prose-blockquote:border-accent-violet prose-blockquote:bg-surface-press-stronger prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:rounded-r-md prose-blockquote:not-italic prose-blockquote:text-ink/80">
                                 <ReactMarkdown 
                                   remarkPlugins={[remarkGfm]}
                                   rehypePlugins={[rehypeRaw]}
