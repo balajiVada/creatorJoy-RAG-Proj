@@ -43,10 +43,10 @@ export const CitationTooltip: React.FC<CitationTooltipProps> = ({ index, citatio
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-center">
               <span className="text-xs font-bold text-ink line-clamp-2 leading-tight">
-                {citation.title || citation.source || "Unknown Source"}
+                {citation.title || "Video Reference"}
               </span>
               <span className="text-[10px] uppercase font-bold text-muted mt-1 flex items-center gap-1">
-                <BookOpen size={10} /> Chunk {citation.chunkIndex !== undefined ? citation.chunkIndex : '?'}
+                <BookOpen size={10} /> Transcript Segment
               </span>
             </div>
           </div>

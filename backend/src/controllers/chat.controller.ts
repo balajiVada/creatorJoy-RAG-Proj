@@ -123,7 +123,11 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
               extractedAt: new Date(),
               title: existingMetadata.title,
               thumbnail: existingMetadata.thumbnail,
-              creatorName: existingMetadata.creatorName
+              creatorName: existingMetadata.creatorName,
+              followerCount: existingMetadata.followerCount,
+              hashtags: existingMetadata.hashtags,
+              uploadDate: existingMetadata.uploadDate,
+              duration: existingMetadata.duration
             });
 
             chatSession.ingestedVideos.push({ url, metadataId: newMetadata._id as any });

@@ -104,9 +104,9 @@ export class VectorService {
       const targetNamespace = index.namespace(targetSessionId);
 
       // Query source namespace for all vectors belonging to videoId
-      // We use a dummy vector of 768 zeros since we filter strictly by videoId
+      // We use a dummy vector with a non-zero element since Pinecone rejects all-zero vectors for cosine similarity
       const response = await sourceNamespace.query({
-        vector: new Array(768).fill(0),
+        vector: [1, ...new Array(767).fill(0)],
         topK: 200,
         filter: { videoId },
         includeValues: true,

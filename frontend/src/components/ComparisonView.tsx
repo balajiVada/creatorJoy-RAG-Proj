@@ -24,7 +24,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({ videos }) => {
         <div className="h-px bg-border-light flex-1"></div>
       </div>
 
-      <div className="flex flex-col xl:flex-row gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 relative min-w-0">
           <div className={`absolute -top-3 -right-3 px-3 py-1 rounded-xs text-[10px] font-bold shadow-sm z-10 uppercase tracking-[0.25px] ${isABetter ? 'bg-accent-lime text-ink-press border border-accent-lime' : 'hidden'}`}>
             Winner

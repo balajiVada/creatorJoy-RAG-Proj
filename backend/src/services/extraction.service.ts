@@ -27,9 +27,13 @@ export const extractYouTubeData = async (url: string): Promise<ExtractedData> =>
   try {
     let transcript = '';
     try {
-      // 1. Fetch transcript
+      // 1. Fetch transcript with timestamps
       const transcriptChunks = await YoutubeTranscript.fetchTranscript(url);
-      transcript = transcriptChunks.map(chunk => chunk.text).join(' ');
+      transcript = transcriptChunks.map(chunk => {
+        // chunk.offset is in milliseconds
+        const offsetSec = Math.floor(chunk.offset / 1000);
+        return `[${offsetSec}s - ${offsetSec + Math.max(1, Math.floor(chunk.duration / 1000))}s]: ${chunk.text}`;
+      }).join('\n');
     } catch (err: any) {
       logger.warn({ err, url }, "Failed to fetch YouTube transcript. Falling back to placeholder.");
       transcript = "Transcript is disabled or unavailable for this video.";
@@ -179,6 +183,7 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
     let followerCount: number | undefined;
     let hashtags: string[] | undefined;
     let uploadDate: Date | undefined;
+    let duration: string | undefined;
     let mediaUrl = '';
     let apiSuccess = false;
 
@@ -213,7 +218,8 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
             followerCount = data.ownerFollowersCount || data.owner?.followersCount;
             uploadDate = data.timestamp ? new Date(data.timestamp) : undefined;
             hashtags = data.hashtags || (transcript ? transcript.match(/#[\w]+/g) : []) || [];
-            mediaUrl = data.audioUrl || data.videoUrl || '';
+            mediaUrl = data.videoUrl || data.audioUrl || '';
+            duration = data.videoDuration?.toString() || data.video_duration?.toString();
             
             apiSuccess = true;
             logger.info(`Successfully extracted Instagram data via Apify for ${url}`);
@@ -274,6 +280,7 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
       uploadDate = data.taken_at ? new Date(data.taken_at * 1000) : undefined;
       hashtags = transcript ? transcript.match(/#[\w]+/g) || [] : [];
       mediaUrl = data.video_url || '';
+      duration = data.videoDuration?.toString() || data.video_duration?.toString();
       
       logger.info(`Successfully extracted Instagram data for ${shortcode} (Media ID: ${mediaId})`);
     }
@@ -286,9 +293,28 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
         const transcriptResponse = await client.transcripts.transcribe({
           audio: mediaUrl
         });
-        if (transcriptResponse.text) {
+        if (transcriptResponse.words && transcriptResponse.words.length > 0) {
+          let currentInterval = 0;
+          let currentBlock = '';
+          const blocks = [];
+          for (const w of transcriptResponse.words) {
+            const wordSec = Math.floor(w.start / 1000);
+            const interval = Math.floor(wordSec / 5) * 5;
+            if (interval !== currentInterval && currentBlock.length > 0) {
+              blocks.push(`[${currentInterval}s - ${currentInterval + 5}s]: ${currentBlock.trim()}`);
+              currentBlock = '';
+              currentInterval = interval;
+            }
+            currentBlock += w.text + ' ';
+          }
+          if (currentBlock.length > 0) {
+            blocks.push(`[${currentInterval}s - ${currentInterval + 5}s]: ${currentBlock.trim()}`);
+          }
+          transcript = blocks.join('\n');
+          logger.info(`Successfully extracted timestamped audio transcript via AssemblyAI for ${url}`);
+        } else if (transcriptResponse.text) {
           transcript = transcriptResponse.text;
-          logger.info(`Successfully extracted true audio transcript via AssemblyAI for ${url}`);
+          logger.info(`Successfully extracted plain audio transcript via AssemblyAI for ${url}`);
         }
       } catch (err: any) {
         logger.warn(`Failed to extract true audio transcript via AssemblyAI, falling back to caption: ${err.message}`);
@@ -316,7 +342,7 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
       followerCount,
       hashtags,
       uploadDate,
-      duration: undefined
+      duration
     };
   } catch (error: any) {
     logger.error({ err: error }, 'Failed to extract Instagram data');

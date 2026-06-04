@@ -41,18 +41,23 @@ export const embeddings = {
     
     for (let i = 0; i < texts.length; i += batchSize) {
       const batchTexts = texts.slice(i, i + batchSize);
-      const response = await ai.models.embedContent({
-        model: 'gemini-embedding-2',
-        contents: batchTexts,
-        config: {
-          outputDimensionality: 768,
-        }
-      });
+      const promises = batchTexts.map(text => 
+        ai.models.embedContent({
+          model: 'gemini-embedding-2',
+          contents: text,
+          config: {
+            outputDimensionality: 768,
+          }
+        })
+      );
       
-      const embeddingsList = response.embeddings || [];
-      embeddingsList.forEach((emb) => {
-        if (emb && emb.values) {
-          results.push(emb.values);
+      const responses = await Promise.all(promises);
+      responses.forEach((res) => {
+        const emb = res.embeddings?.[0]?.values;
+        if (emb) {
+          results.push(emb);
+        } else {
+          results.push([]);
         }
       });
     }
