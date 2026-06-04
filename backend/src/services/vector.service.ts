@@ -13,8 +13,8 @@ export class VectorService {
   }
 
   async upsertTranscriptVectors(
-    sessionId: string,
     videoId: string,
+    videoUrl: string,
     source: 'youtube' | 'instagram',
     chunks: string[]
   ): Promise<void> {
@@ -22,7 +22,7 @@ export class VectorService {
       throw new Error("Pinecone client is not initialized.");
     }
 
-    const index = pinecone.Index(PINECONE_INDEX_NAME).namespace(sessionId);
+    const index = pinecone.Index(PINECONE_INDEX_NAME);
     const vectors = await this.embedDocuments(chunks);
 
     const records = chunks.map((chunkText, idx) => {
@@ -31,11 +31,11 @@ export class VectorService {
         throw new Error(`Failed to generate embedding for chunk ${idx}`);
       }
       return {
-        id: `${sessionId}:${videoId}:${idx}`,
+        id: `${videoId}:${idx}`,
         values: vector,
         metadata: {
-          sessionId,
           videoId,
+          videoUrl,
           source,
           chunkIndex: idx,
           text: chunkText,
@@ -55,10 +55,7 @@ export class VectorService {
       throw new Error("Pinecone client is not initialized.");
     }
     
-    const ns = filter?.sessionId;
-    const index = ns 
-      ? pinecone.Index(PINECONE_INDEX_NAME).namespace(ns)
-      : pinecone.Index(PINECONE_INDEX_NAME);
+    const index = pinecone.Index(PINECONE_INDEX_NAME);
 
     const queryOptions: any = {
       vector,
@@ -67,13 +64,7 @@ export class VectorService {
     };
 
     if (filter) {
-      const cleanFilter = { ...filter };
-      if (ns) {
-        delete cleanFilter.sessionId;
-      }
-      if (Object.keys(cleanFilter).length > 0) {
-        queryOptions.filter = cleanFilter;
-      }
+      queryOptions.filter = filter;
     }
 
     const response = await index.query(queryOptions);
@@ -81,15 +72,8 @@ export class VectorService {
   }
 
   async deleteSessionVectors(sessionId: string): Promise<void> {
-    if (!pinecone) return;
-    try {
-      const index = pinecone.Index(PINECONE_INDEX_NAME);
-      await index.namespace(sessionId).deleteAll();
-    } catch (error) {
-      // Don't throw, just log warning as database cleanup shouldn't block main deletes
-      const log = require('../utils/logger').logger;
-      log.warn({ err: error, sessionId }, "Failed to delete Pinecone namespace vectors");
-    }
+    // No-op: Vectors are stored globally and cached across sessions.
+    // They are preserved even if individual chat sessions are deleted.
   }
 
   async cloneVectorsToNewSession(
@@ -97,44 +81,7 @@ export class VectorService {
     targetSessionId: string,
     videoId: string
   ): Promise<void> {
-    if (!pinecone) return;
-    try {
-      const index = pinecone.Index(PINECONE_INDEX_NAME);
-      const sourceNamespace = index.namespace(sourceSessionId);
-      const targetNamespace = index.namespace(targetSessionId);
-
-      // Query source namespace for all vectors belonging to videoId
-      // We use a dummy vector with a non-zero element since Pinecone rejects all-zero vectors for cosine similarity
-      const response = await sourceNamespace.query({
-        vector: [1, ...new Array(767).fill(0)],
-        topK: 200,
-        filter: { videoId },
-        includeValues: true,
-        includeMetadata: true
-      });
-
-      const matches = response.matches || [];
-      if (matches.length === 0) return;
-
-      const records = matches.map((match) => {
-        const oldMetadata = match.metadata || {};
-        return {
-          id: `${targetSessionId}:${videoId}:${oldMetadata.chunkIndex}`,
-          values: match.values || [],
-          metadata: {
-            ...oldMetadata,
-            sessionId: targetSessionId // update target sessionId
-          }
-        };
-      });
-
-      // Upsert to target namespace
-      await targetNamespace.upsert({ records });
-    } catch (error) {
-      const log = require('../utils/logger').logger;
-      log.error({ err: error, sourceSessionId, targetSessionId, videoId }, "Failed to clone vectors to new session");
-      throw error;
-    }
+    // No-op: Vectors are stored globally and shared. No copying is required.
   }
 }
 

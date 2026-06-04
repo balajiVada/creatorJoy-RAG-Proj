@@ -19,6 +19,12 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
 
   const runId = uuidv4();
   
+  let isClientConnected = true;
+  res.on('close', () => {
+    isClientConnected = false;
+    logger.info(`SSE client connection closed for runId: ${runId}`);
+  });
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -93,6 +99,10 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
       emitPipelineStep({ step: 'ingestion_started', status: 'processing', urls: newUrlsToIngest });
 
       for (const url of newUrlsToIngest) {
+        if (!isClientConnected) {
+          logger.warn("Aborting ingestion loop - client disconnected.");
+          break;
+        }
         try {
           emitPipelineStep({ step: 'ingestion_started', status: 'processing', url });
           
@@ -102,13 +112,6 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
           if (existingMetadata) {
             logger.info(`Global metadata cache hit for ${url}. Reusing existing extraction.`);
             
-            // Clone Pinecone vectors from old session namespace to current session namespace
-            await vectorService.cloneVectorsToNewSession(
-              existingMetadata.chatSessionId.toString(),
-              chatSession._id.toString(),
-              existingMetadata._id.toString()
-            );
-
             // Create a session-specific copy of the metadata
             const newMetadata = await VideoMetadata.create({
               url,
@@ -141,19 +144,42 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
             // Not cached, run scraping job in worker queue
             const job = await ingestionQueue.add('ingest-video', { url, chatSessionId: chatSession._id.toString() });
             
-            const progressListener = (args: { jobId: string; data: any | string }) => {
-              if (args.jobId === job.id) {
-                emitPipelineStep(args.data);
+            let progressListener: any;
+            let disconnectListener: any;
+
+            const ingestionPromise = new Promise(async (resolve, reject) => {
+              progressListener = (args: { jobId: string; data: any | string }) => {
+                if (args.jobId === job.id && isClientConnected) {
+                  emitPipelineStep(args.data);
+                }
+              };
+              ingestionQueueEvents.on('progress', progressListener);
+
+              try {
+                const metadata = await job.waitUntilFinished(ingestionQueueEvents);
+                resolve(metadata);
+              } catch (err) {
+                reject(err);
               }
-            };
-            
-            ingestionQueueEvents.on('progress', progressListener);
-            
+            });
+
+            const disconnectPromise = new Promise((_, reject) => {
+              disconnectListener = () => {
+                reject(new Error("Client disconnected. Ingestion cancelled."));
+              };
+              res.on('close', disconnectListener);
+            });
+
             try {
-              const metadata = await job.waitUntilFinished(ingestionQueueEvents);
+              const metadata = await Promise.race([ingestionPromise, disconnectPromise]);
               newlyIngestedMetadata.push(metadata);
             } finally {
-              ingestionQueueEvents.off('progress', progressListener);
+              if (progressListener) {
+                ingestionQueueEvents.off('progress', progressListener);
+              }
+              if (disconnectListener) {
+                res.off('close', disconnectListener);
+              }
             }
           }
         } catch (err: any) {
@@ -182,17 +208,10 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
       }
     }
 
-    // Persist User Message
-    await ChatMessage.create({
-      chatSessionId: chatSession._id,
-      role: 'user',
-      content: message,
-    });
-    chatSession.messageCount += 1;
-    await chatSession.save();
-
-    // 4. Determine Query to Process
-    const queryToProcess = message;
+    if (!isClientConnected) {
+      logger.warn("Aborting chat generation - client disconnected.");
+      return;
+    }
 
     // 5. Retrieval Pipeline (for actual text queries)
     const history = await ChatMessage.find({ chatSessionId: chatSession._id })
@@ -204,6 +223,18 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     emitPipelineStep({ step: 'memory_loaded', status: 'completed' });
 
     const memoryContext = history.map(msg => ({ role: msg.role, content: msg.content }));
+
+    // Persist User Message
+    await ChatMessage.create({
+      chatSessionId: chatSession._id,
+      role: 'user',
+      content: message,
+    });
+    chatSession.messageCount += 1;
+    await chatSession.save();
+
+    // 4. Determine Query to Process
+    const queryToProcess = message;
 
     const rewriteStart = Date.now();
     const rewrittenQuery = await llmService.rewriteQuery(queryToProcess, memoryContext);
@@ -228,9 +259,6 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     
     // Fetch all metadata for this session to inject into prompt and citations
     const allMetadata = await VideoMetadata.find({ chatSessionId: chatSession._id });
-    
-    // Create lookup map
-    const metadataMap = new Map(allMetadata.map(md => [md._id.toString(), md]));
 
     let citations: any[] = [];
     
@@ -249,7 +277,9 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
     if (intent === 'REQUIRES_TRANSCRIPT') {
       const searchStart = Date.now();
       const embeddedQuery = await vectorService.embedText(rewrittenQuery);
-      const matches = await vectorService.querySimilarity(embeddedQuery, 6, { sessionId: chatSession._id.toString() });
+      
+      const videoUrls = allMetadata.map(md => md.url);
+      const matches = await vectorService.querySimilarity(embeddedQuery, 6, { videoUrl: { "$in": videoUrls } });
       
       emitPipelineStep({ 
         step: 'semantic_search_completed', 
@@ -260,8 +290,12 @@ export const handleChat = async (req: Request, res: Response): Promise<any> => {
       });
 
       matches.forEach(match => {
+        const videoUrl = match.metadata?.videoUrl;
         const videoId = match.metadata?.videoId;
-        const md = videoId ? metadataMap.get(videoId.toString()) : null;
+        const md = allMetadata.find(m => 
+          (videoUrl && m.url === videoUrl) || 
+          (videoId && m._id.toString() === videoId.toString())
+        );
         
         citations.push({
           source: match.metadata?.source,

@@ -191,7 +191,7 @@ export const extractInstagramData = async (url: string): Promise<ExtractedData> 
       try {
         logger.info(`Starting Instagram extraction via Apify for ${url}`);
         const input = {
-          username: [url],
+          directUrls: [url],
           resultsLimit: 1,
         };
         const apiUrl = `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${apifyToken}`;

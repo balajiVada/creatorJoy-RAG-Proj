@@ -49,8 +49,8 @@ export const ingestionWorker = new Worker(INGESTION_QUEUE_NAME, async (job: Job)
     const chunks = await chunkingService.splitText(data.transcript);
     
     await vectorService.upsertTranscriptVectors(
-      chatSessionId, 
       metadata._id.toString(), 
+      url,
       platform, 
       chunks
     );
