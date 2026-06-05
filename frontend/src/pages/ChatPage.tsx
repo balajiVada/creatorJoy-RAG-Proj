@@ -50,6 +50,7 @@ function ChatPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(window.innerWidth >= 1024);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -57,6 +58,13 @@ function ChatPage() {
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -348,17 +356,27 @@ function ChatPage() {
         </div>
 
         <div className="p-6 pb-8 shrink-0 bg-canvas relative">
-          <div className="max-w-4xl mx-auto bg-white rounded-2xl flex items-center gap-2 border border-border-light shadow-sm focus-within:shadow-md focus-within:border-primary/30 transition-all p-1.5 pl-2">
-            <input 
-              type="text" 
+          <div className="max-w-4xl mx-auto bg-white rounded-2xl flex items-end gap-2 border border-border-light shadow-sm focus-within:shadow-md focus-within:border-primary/30 transition-all p-2 pl-3">
+            <textarea 
+              ref={textareaRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               disabled={isLoading}
               placeholder="Paste links or ask anything..."
-              className="flex-1 min-w-[200px] bg-transparent border-none focus:ring-0 py-3 px-4 text-[16px] outline-none placeholder:text-muted/70 font-sans text-ink"
+              className="flex-1 min-w-[200px] bg-transparent border-none focus:ring-0 py-2 px-2 text-[16px] outline-none placeholder:text-muted/70 font-sans text-ink resize-none max-h-[200px] overflow-y-auto"
             />
-            <button onClick={() => handleSend()} disabled={isLoading || !input.trim()} className={`p-3 rounded-xl flex items-center justify-center transition-all ${input.trim() && !isLoading ? 'bg-primary hover:bg-primary/90 text-white shadow-sm hover:shadow-md' : 'bg-soft-stone text-muted cursor-not-allowed'}`}>
+            <button 
+              onClick={() => handleSend()} 
+              disabled={isLoading || !input.trim()} 
+              className={`p-3 rounded-xl flex items-center justify-center transition-all shrink-0 ${input.trim() && !isLoading ? 'bg-primary hover:bg-primary/90 text-white shadow-sm hover:shadow-md' : 'bg-soft-stone text-muted cursor-not-allowed'}`}
+            >
               <Send size={18} />
             </button>
           </div>
